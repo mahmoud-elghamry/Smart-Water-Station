@@ -1,0 +1,235 @@
+{
+  "version": 1,
+  "author": "Eng. Tanta",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay1",
+      "top": 200,
+      "left": 0,
+      "attrs": {
+        "label": "PUMP"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 240,
+      "left": 110,
+      "attrs": {
+        "color": "blue",
+        "label": "Status"
+      }
+    },
+    {
+      "type": "wokwi-ssd1306",
+      "id": "oled1",
+      "top": 0,
+      "left": 170,
+      "attrs": {
+        "i2cAddr": "0x3c"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_ph",
+      "top": 120,
+      "left": 170,
+      "attrs": {
+        "label": "pH Control"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_turb",
+      "top": 220,
+      "left": 170,
+      "attrs": {
+        "label": "Turbidity"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_flow",
+      "top": 320,
+      "left": 170,
+      "attrs": {
+        "label": "Flow Rate"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:TX",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "esp:21",
+      "oled1:SDA",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:22",
+      "oled1:SCL",
+      "yellow",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:3V3",
+      "oled1:VCC",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:GND",
+      "oled1:GND",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:3V3",
+      "pot_ph:VCC",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:GND",
+      "pot_ph:GND",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:34",
+      "pot_ph:SIG",
+      "purple",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:3V3",
+      "pot_turb:VCC",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:GND",
+      "pot_turb:GND",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:35",
+      "pot_turb:SIG",
+      "orange",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:3V3",
+      "pot_flow:VCC",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:GND",
+      "pot_flow:GND",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:32",
+      "pot_flow:SIG",
+      "cyan",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:3V3",
+      "relay1:VCC",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:GND",
+      "relay1:GND",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "esp:2",
+      "relay1:IN",
+      "blue",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "relay1:NO",
+      "led1:A",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "relay1:COM",
+      "esp:3V3",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "led1:C",
+      "esp:GND",
+      "black",
+      [
+        "v0"
+      ]
+    ]
+  ]
+}

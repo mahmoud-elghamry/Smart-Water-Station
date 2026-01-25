@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SmarterWater - Prototype Demo</title>
-  
+
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  
+
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
+
   <style>
     /* Custom Styles */
     body {
@@ -153,8 +154,15 @@
     }
 
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
     }
 
     .btn-connect {
@@ -284,11 +292,11 @@
       border-radius: 50%;
     }
 
-    input:checked + .slider {
+    input:checked+.slider {
       background-color: #4169b3;
     }
 
-    input:checked + .slider:before {
+    input:checked+.slider:before {
       transform: translateX(40px);
     }
 
@@ -399,7 +407,8 @@
       font-weight: 600;
     }
 
-    .footer-section p, .footer-section a {
+    .footer-section p,
+    .footer-section a {
       color: #d1d5db;
       text-decoration: none;
       display: block;
@@ -439,11 +448,11 @@
       .page-title {
         font-size: 36px;
       }
-      
+
       .header-section {
         flex-direction: column;
       }
-      
+
       .pump-card {
         flex-direction: column;
         gap: 20px;
@@ -456,6 +465,7 @@
     }
   </style>
 </head>
+
 <body>
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-custom">
@@ -504,27 +514,26 @@
         </button>
       </div>
 
-      <!-- Connection Status -->
+      <!-- MQTT Connection Status -->
       <div class="connection-card">
         <div class="connection-status">
           <div class="status-indicator" id="statusIndicator"></div>
-          <span id="statusText">Not Connected</span>
+          <span id="statusText">Not Connected to MQTT</span>
         </div>
-        <button class="btn-connect" id="connectBtn" onclick="connectSerial()">
-          Connect to Device
+        <button class="btn-connect" id="connectBtn" onclick="connectMQTT()">
+          Connect to MQTT Broker
         </button>
       </div>
 
-      <!-- Reading Control (NEW) -->
-      <div class="connection-card">
+      <!-- Alert Banner (Hidden by default) -->
+      <div class="connection-card" id="alertBanner" style="display: none; background: #fef2f2; border: 2px solid #ef4444;">
         <div class="connection-status">
-          <span style="font-weight: 600; color: #4169b3;">
-            <i class="fas fa-satellite-dish"></i> Data Reading Control
+          <span style="font-weight: 600; color: #ef4444;">
+            <i class="fas fa-exclamation-triangle"></i> <span id="alertText">Safety Alert</span>
           </span>
         </div>
-        <button class="btn-connect" id="readingBtn" onclick="toggleReading()" 
-                style="background: #22c55e;">
-          ▶️ Start Reading
+        <button class="btn-connect" id="resetSafetyBtn" onclick="resetSafety()" style="background: #ef4444;">
+          Reset Safety Lockout
         </button>
       </div>
 
@@ -536,25 +545,31 @@
         </h3>
         <div class="sensor-readings">
           <p class="sensor-line">
-            <span class="sensor-label">TDS Sensor:</span>
-            <span class="sensor-value" id="tdsValue">-- ppm</span>
+            <span class="sensor-label">pH Sensor:</span>
+            <span class="sensor-value" id="phValue">-- pH</span>
+            <span class="sensor-status" id="phStatus" style="margin-left: 10px; font-size: 14px;"></span>
           </p>
           <p class="sensor-line">
-            <span class="sensor-label">Pressure Sensor:</span>
-            <span class="sensor-value" id="pressureValue">-- bar</span>
+            <span class="sensor-label">Turbidity:</span>
+            <span class="sensor-value" id="turbidityValue">-- NTU</span>
+            <span class="sensor-status" id="turbidityStatus" style="margin-left: 10px; font-size: 14px;"></span>
           </p>
           <p class="sensor-line">
             <span class="sensor-label">Flow Rate:</span>
             <span class="sensor-value" id="flowRateValue">-- L/min</span>
+            <span class="sensor-status" id="flowStatus2" style="margin-left: 10px; font-size: 14px;"></span>
           </p>
         </div>
       </div>
 
       <!-- Pump Control -->
-      <div class="pump-card">
+      <div class="pump-card" id="pumpCard">
         <div class="pump-left">
-          <i class="fas fa-power-off pump-icon"></i>
-          <h3 class="pump-title">Start / Stop Pump</h3>
+          <i class="fas fa-power-off pump-icon" id="pumpIcon"></i>
+          <div>
+            <h3 class="pump-title">Start / Stop Pump</h3>
+            <span id="pumpLockStatus" style="font-size: 14px; color: #ef4444; display: none;">🔒 Safety Lockout Active</span>
+          </div>
         </div>
         <div class="pump-right">
           <label class="switch">
@@ -629,28 +644,47 @@
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+  <!-- Paho MQTT JavaScript Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
   <!-- Custom JavaScript -->
   <script>
     // ============================================
-    // GLOBAL VARIABLES (Data Storage)
+    // MQTT CONFIGURATION
     // ============================================
-    let port = null;                    // USB Serial port connection
-    let reader = null;                  // Reads data from USB
+    const MQTT_BROKER = 'broker.hivemq.com';
+    const MQTT_PORT = 8000;  // WebSocket port
+    const MQTT_TOPIC_SENSORS = 'grad/project/sensors';
+    const MQTT_TOPIC_ALERTS = 'grad/project/alerts';
+    const MQTT_TOPIC_CONTROL = 'grad/project/control';
+
+    // Generate unique client ID
+    const MQTT_CLIENT_ID = 'SmarterWater_Web_' + Math.random().toString(16).substr(2, 8);
+
+    // ============================================
+    // GLOBAL VARIABLES
+    // ============================================
+    let mqttClient = null;              // MQTT client instance
     let isConnected = false;            // Connection status
-    let isReading = false;              // Reading status (NEW)
     let currentMode = 'ai';             // Current operation mode
     let pumpState = false;              // Pump ON/OFF status
+    let pumpLocked = false;             // Safety lockout status
+    let currentAlert = '';              // Current alert message
 
     // Sensor data storage
     let sensorData = {
-      tds: 0,           // Water quality (ppm)
-      pressure: 0,      // Water pressure (bar)
-      flowRate: 0,      // Water flow speed (L/min)
-      flowProgress: 0   // Progress percentage
+      ph: 0,              // pH value
+      turbidity: 0,       // Turbidity (NTU)
+      tds: 0,             // TDS (ppm) - for backward compatibility
+      pressure: 0,        // Pressure (bar)
+      flowRate: 0,        // Flow rate (L/min)
+      flowProgress: 0     // Progress percentage
     };
 
     // Data history for charts (stores last 10 readings)
     let dataHistory = {
+      ph: [],
+      turbidity: [],
       tds: [],
       pressure: [],
       flowRate: [],
@@ -658,162 +692,124 @@
     };
 
     // ============================================
-    // USB SERIAL CONNECTION
+    // MQTT CONNECTION FUNCTIONS
     // ============================================
 
-    // Connect to ESP32 via USB
-    async function connectSerial() {
+    // Connect to MQTT Broker via WebSocket
+    function connectMQTT() {
+      console.log('🔌 Connecting to MQTT broker:', MQTT_BROKER);
+
+      // Update UI to show connecting
+      document.getElementById('statusText').textContent = '⏳ Connecting...';
+      document.getElementById('connectBtn').disabled = true;
+
       try {
-        // Request user to select USB device
-        port = await navigator.serial.requestPort();
-        
-        // Open connection at 115200 baud rate
-        await port.open({ baudRate: 115200 });
+        // Create MQTT client instance
+        mqttClient = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, MQTT_CLIENT_ID);
 
-        isConnected = true;
-        updateConnectionStatus(true);
-        console.log('✅ Connected to ESP32');
+        // Set callback handlers
+        mqttClient.onConnectionLost = onConnectionLost;
+        mqttClient.onMessageArrived = onMessageArrived;
 
-        // DON'T start reading automatically - wait for user to click "Start Reading"
-        
+        // Connection options
+        const connectOptions = {
+          onSuccess: onConnectSuccess,
+          onFailure: onConnectFailure,
+          useSSL: false,
+          timeout: 10,
+          keepAliveInterval: 30,
+          cleanSession: true
+        };
+
+        // Attempt connection
+        mqttClient.connect(connectOptions);
+
       } catch (error) {
-        console.error('❌ Connection error:', error);
-        alert('Failed to connect. Use Chrome or Edge browser.');
+        console.error('❌ MQTT Client creation error:', error);
+        onConnectFailure({ errorMessage: error.message });
       }
     }
 
-    // Disconnect from USB device
-    async function disconnectSerial() {
-      try {
-        // Stop reading first if active
-        if (isReading) {
-          await stopReading();
+    // Disconnect from MQTT Broker
+    function disconnectMQTT() {
+      if (mqttClient && isConnected) {
+        try {
+          mqttClient.disconnect();
+          console.log('🔌 Disconnected from MQTT broker');
+        } catch (error) {
+          console.error('❌ Disconnect error:', error);
         }
-        
-        // Stop reading data
-        if (reader) {
-          await reader.cancel();
-          reader = null;
-        }
-        
-        // Close USB port
-        if (port) {
-          await port.close();
-          port = null;
-        }
-        
-        isConnected = false;
-        updateConnectionStatus(false);
-        console.log('🔌 Disconnected from ESP32');
-        
-      } catch (error) {
-        console.error('❌ Disconnect error:', error);
       }
+
+      isConnected = false;
+      updateConnectionStatus(false);
     }
 
     // ============================================
-    // DATA READING FROM USB
+    // MQTT CALLBACKS
     // ============================================
 
-    // Start reading data from USB
-    async function startReading() {
-      // Check if connected first
-      if (!port || !isConnected) {
-        alert('⚠️ Please connect to device first');
-        return;
-      }
-      
-      // Check if already reading
-      if (isReading) {
-        console.log('⚠️ Already reading data');
-        return;
-      }
-      
-      isReading = true;
-      updateReadingStatus(true);
-      console.log('▶️ Started reading data');
-      
-      // Start the reading process
-      readSerialData();
+    // Called when connection is successful
+    function onConnectSuccess() {
+      console.log('✅ Connected to MQTT broker!');
+      isConnected = true;
+      updateConnectionStatus(true);
+
+      // Subscribe to sensors topic
+      mqttClient.subscribe(MQTT_TOPIC_SENSORS, {
+        onSuccess: function () {
+          console.log('📡 Subscribed to:', MQTT_TOPIC_SENSORS);
+        },
+        onFailure: function (err) {
+          console.error('❌ Subscribe failed:', err);
+        }
+      });
+
+      // Subscribe to alerts topic
+      mqttClient.subscribe(MQTT_TOPIC_ALERTS, {
+        onSuccess: function () {
+          console.log('🚨 Subscribed to:', MQTT_TOPIC_ALERTS);
+        },
+        onFailure: function (err) {
+          console.error('❌ Subscribe failed:', err);
+        }
+      });
     }
 
-    // Stop reading data from USB
-    async function stopReading() {
-      if (!isReading) {
-        console.log('⚠️ Not currently reading');
-        return;
-      }
-      
-      try {
-        // Cancel the reader to stop the loop
-        if (reader) {
-          await reader.cancel();
-          reader = null;
-        }
-        
-        isReading = false;
-        updateReadingStatus(false);
-        console.log('⏸️ Stopped reading data');
-        
-      } catch (error) {
-        console.error('❌ Error stopping reader:', error);
-      }
+    // Called when connection fails
+    function onConnectFailure(response) {
+      console.error('❌ Connection failed:', response.errorMessage);
+      isConnected = false;
+      updateConnectionStatus(false);
+
+      document.getElementById('connectBtn').disabled = false;
+      alert('Failed to connect to MQTT broker: ' + response.errorMessage);
     }
 
-    // Toggle between start/stop reading
-    function toggleReading() {
-      if (isReading) {
-        stopReading();
-      } else {
-        startReading();
+    // Called when connection is lost
+    function onConnectionLost(response) {
+      if (response.errorCode !== 0) {
+        console.error('❌ Connection lost:', response.errorMessage);
       }
+      isConnected = false;
+      updateConnectionStatus(false);
     }
 
-    // Read data continuously from USB
-    async function readSerialData() {
-      // Create text decoder for incoming bytes with line splitting
-      const textDecoder = new TextDecoderStream();
-      const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
-      
-      // Create a transform stream to split by lines
-      const lineStream = textDecoder.readable.pipeThrough(
-        new TransformStream({
-          transform(chunk, controller) {
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-              if (line.trim()) {
-                controller.enqueue(line.trim());
-              }
-            }
-          }
-        })
-      );
-      
-      reader = lineStream.getReader();
+    // Called when a message arrives
+    function onMessageArrived(message) {
+      const topic = message.destinationName;
+      const payload = message.payloadString;
 
-      try {
-        // Loop continues until stopReading() is called
-        while (isReading) {
-          const { value, done } = await reader.read();
-          
-          // Stop if connection closed or cancelled
-          if (done) {
-            reader.releaseLock();
-            break;
-          }
-          
-          // Process the received data (now value is a complete line)
-          processSerialData(value);
-        }
-      } catch (error) {
-        // Error might occur when stopping - that's normal
-        if (isReading) {
-          console.error('❌ Read error:', error);
-          isConnected = false;
-          isReading = false;
-          updateConnectionStatus(false);
-          updateReadingStatus(false);
-        }
+      console.log('📩 Message received on:', topic);
+      console.log('   Payload:', payload);
+
+      // Process sensor data from ESP32
+      if (topic === MQTT_TOPIC_SENSORS) {
+        processSensorData(payload);
+      }
+      // Process alerts from ESP32
+      else if (topic === MQTT_TOPIC_ALERTS) {
+        processAlert(payload);
       }
     }
 
@@ -821,16 +817,21 @@
     // DATA PROCESSING
     // ============================================
 
-    // Parse incoming data from ESP32
-    function processSerialData(data) {
-      console.log('📡 Received line:', data);
-      
+    // Parse incoming sensor data from ESP32
+    function processSensorData(data) {
       try {
-        // METHOD 1: Try parsing as JSON
-        // Example: {"tds":450,"pressure":1.8,"flowRate":10}
+        // Parse JSON data
+        // Expected format: {"ph": X, "turbidity": Y, "pump": Z}
         const parsedData = JSON.parse(data);
-        console.log('✅ Parsed JSON:', parsedData);
-        
+        console.log('✅ Parsed sensor data:', parsedData);
+
+        // Update sensor values
+        if (parsedData.ph !== undefined) {
+          sensorData.ph = parsedData.ph;
+        }
+        if (parsedData.turbidity !== undefined) {
+          sensorData.turbidity = parsedData.turbidity;
+        }
         if (parsedData.tds !== undefined) {
           sensorData.tds = parsedData.tds;
         }
@@ -843,117 +844,247 @@
         if (parsedData.flowProgress !== undefined) {
           sensorData.flowProgress = parsedData.flowProgress;
         }
-        
+
+        // Update pump state from ESP32 feedback
+        if (parsedData.pump !== undefined) {
+          pumpState = (parsedData.pump === 1 || parsedData.pump === true);
+          document.getElementById('pumpToggle').checked = pumpState;
+        }
+
+        // Update lockout state from ESP32
+        if (parsedData.locked !== undefined) {
+          pumpLocked = (parsedData.locked === 1 || parsedData.locked === true);
+          updatePumpLockStatus();
+        }
+
         // Update history for charts
         addToHistory();
-        
+
         // Update display
         updateUI();
-        
+
       } catch (error) {
-        console.log('❌ JSON parse failed, trying key-value:', error);
-        // METHOD 2: Parse as key-value pairs
-        // Example: TDS:450,PRESSURE:1.8,FLOW:10
-        parseKeyValueData(data);
+        console.error('❌ JSON parse error:', error);
+        console.log('   Raw data:', data);
       }
     }
 
-    // Parse key-value format data
-    function parseKeyValueData(data) {
-      // Split by comma
-      const pairs = data.split(',');
-      
-      // Process each key:value pair
-      pairs.forEach(pair => {
-        const [key, value] = pair.split(':');
+    // Process alert messages
+    function processAlert(data) {
+      try {
+        const alertData = JSON.parse(data);
+        console.log('🚨 Alert received:', alertData);
+
+        currentAlert = alertData.message || 'Safety Alert';
         
-        if (key && value) {
-          const trimmedKey = key.trim().toLowerCase();
-          const numValue = parseFloat(value);
-          
-          // Update corresponding sensor value
-          if (trimmedKey === 'tds') {
-            sensorData.tds = numValue;
-          } 
-          else if (trimmedKey === 'pressure') {
-            sensorData.pressure = numValue;
-          } 
-          else if (trimmedKey.includes('flow') && !trimmedKey.includes('progress')) {
-            sensorData.flowRate = numValue;
-          } 
-          else if (trimmedKey.includes('progress')) {
-            sensorData.flowProgress = numValue;
-          }
-          else if (trimmedKey === 'pump') {
-            pumpState = (numValue === 1);
-            document.getElementById('pumpToggle').checked = pumpState;
-          }
+        // Show or hide alert banner
+        const alertBanner = document.getElementById('alertBanner');
+        const alertText = document.getElementById('alertText');
+        
+        if (alertData.type === 'SYSTEM_OK' || alertData.type === 'RESET') {
+          alertBanner.style.display = 'none';
+        } else {
+          alertBanner.style.display = 'flex';
+          alertText.textContent = currentAlert;
         }
-      });
-      
-      // Update history and display
-      addToHistory();
-      updateUI();
+
+        // Update lockout status
+        if (alertData.pumpLocked !== undefined) {
+          pumpLocked = alertData.pumpLocked;
+          updatePumpLockStatus();
+        }
+
+      } catch (error) {
+        console.error('❌ Alert parse error:', error);
+      }
     }
 
     // ============================================
-    // DATA HISTORY (for future charts)
+    // PUBLISHING COMMANDS
+    // ============================================
+
+    // Publish command to control topic
+    function publishCommand(command) {
+      if (!mqttClient || !isConnected) {
+        alert('⚠️ Please connect to MQTT broker first');
+        return;
+      }
+
+      try {
+        const message = new Paho.MQTT.Message(command);
+        message.destinationName = MQTT_TOPIC_CONTROL;
+        message.qos = 1;  // At least once delivery
+
+        mqttClient.send(message);
+        console.log('📤 Published to', MQTT_TOPIC_CONTROL + ':', command);
+
+      } catch (error) {
+        console.error('❌ Publish error:', error);
+      }
+    }
+
+    // ============================================
+    // DATA HISTORY (for charts)
     // ============================================
 
     // Add current data to history
     function addToHistory() {
       const maxHistory = 10; // Keep last 10 readings
-      
+
       // Add new values
+      dataHistory.ph.push(sensorData.ph);
+      dataHistory.turbidity.push(sensorData.turbidity);
       dataHistory.tds.push(sensorData.tds);
       dataHistory.pressure.push(sensorData.pressure);
       dataHistory.flowRate.push(sensorData.flowRate);
       dataHistory.timestamps.push(new Date().toLocaleTimeString());
-      
+
       // Remove old values if exceeded limit
-      if (dataHistory.tds.length > maxHistory) {
+      if (dataHistory.ph.length > maxHistory) {
+        dataHistory.ph.shift();
+        dataHistory.turbidity.shift();
         dataHistory.tds.shift();
         dataHistory.pressure.shift();
         dataHistory.flowRate.shift();
         dataHistory.timestamps.shift();
       }
-      
-      console.log('📊 History updated:', dataHistory.tds.length, 'readings');
+
+      console.log('📊 History updated:', dataHistory.ph.length, 'readings');
     }
 
     // ============================================
-    // UI UPDATE
+    // UI UPDATE FUNCTIONS
     // ============================================
 
     // Update all display values
     function updateUI() {
-      // Update sensor values
-      document.getElementById('tdsValue').textContent = `${Math.round(sensorData.tds)} ppm`;
-      document.getElementById('pressureValue').textContent = `${sensorData.pressure.toFixed(1)} bar`;
-      document.getElementById('flowRateValue').textContent = `${sensorData.flowRate.toFixed(1)} L/min`;
-      
-      // Update progress bar
-      const progress = Math.min(Math.max(sensorData.flowProgress, 0), 100);
-      document.getElementById('flowProgress').style.width = `${progress}%`;
-      document.getElementById('flowPercent').textContent = `${Math.round(progress)}%`;
-      
-      // Update flow status with color
+      // Update pH value and status
+      const phEl = document.getElementById('phValue');
+      const phStatus = document.getElementById('phStatus');
+      if (phEl) {
+        phEl.textContent = `${sensorData.ph.toFixed(2)} pH`;
+      }
+      if (phStatus) {
+        if (sensorData.ph < 6.0 || sensorData.ph > 9.0) {
+          phStatus.textContent = '⛔ DANGER';
+          phStatus.style.color = '#ef4444';
+        } else if (sensorData.ph < 6.5 || sensorData.ph > 8.5) {
+          phStatus.textContent = '⚠️ WARNING';
+          phStatus.style.color = '#f59e0b';
+        } else {
+          phStatus.textContent = '✅ SAFE';
+          phStatus.style.color = '#22c55e';
+        }
+      }
+
+      // Update Turbidity value and status
+      const turbidityEl = document.getElementById('turbidityValue');
+      const turbidityStatus = document.getElementById('turbidityStatus');
+      if (turbidityEl) {
+        turbidityEl.textContent = `${Math.round(sensorData.turbidity)} NTU`;
+      }
+      if (turbidityStatus) {
+        if (sensorData.turbidity > 800) {
+          turbidityStatus.textContent = '⛔ DANGER';
+          turbidityStatus.style.color = '#ef4444';
+        } else if (sensorData.turbidity > 500) {
+          turbidityStatus.textContent = '⚠️ WARNING';
+          turbidityStatus.style.color = '#f59e0b';
+        } else {
+          turbidityStatus.textContent = '✅ SAFE';
+          turbidityStatus.style.color = '#22c55e';
+        }
+      }
+
+      // Update Flow Rate value and status
+      const flowRateEl = document.getElementById('flowRateValue');
+      const flowStatus2 = document.getElementById('flowStatus2');
+      if (flowRateEl) {
+        flowRateEl.textContent = `${sensorData.flowRate.toFixed(1)} L/min`;
+      }
+      if (flowStatus2) {
+        if (sensorData.flowRate < 2.0 && pumpState) {
+          flowStatus2.textContent = '⛔ DRY RUN RISK';
+          flowStatus2.style.color = '#ef4444';
+        } else if (sensorData.flowRate < 5.0) {
+          flowStatus2.textContent = '⚠️ LOW';
+          flowStatus2.style.color = '#f59e0b';
+        } else {
+          flowStatus2.textContent = '✅ NORMAL';
+          flowStatus2.style.color = '#22c55e';
+        }
+      }
+
+      // Update progress bar based on flow rate (0-20 L/min = 0-100%)
+      const progress = Math.min(Math.max((sensorData.flowRate / 20) * 100, 0), 100);
+      const progressEl = document.getElementById('flowProgress');
+      const percentEl = document.getElementById('flowPercent');
+
+      if (progressEl) {
+        progressEl.style.width = `${progress}%`;
+        // Change color based on status
+        if (sensorData.flowRate < 2.0 && pumpState) {
+          progressEl.style.background = '#ef4444';
+        } else if (sensorData.flowRate < 5.0) {
+          progressEl.style.background = '#f59e0b';
+        } else {
+          progressEl.style.background = '#4169b3';
+        }
+      }
+      if (percentEl) {
+        percentEl.textContent = `${sensorData.flowRate.toFixed(1)} L/min`;
+      }
+
+      // Update overall status
       updateFlowStatus();
+    }
+
+    // Update pump lockout status UI
+    function updatePumpLockStatus() {
+      const pumpCard = document.getElementById('pumpCard');
+      const pumpLockStatus = document.getElementById('pumpLockStatus');
+      const pumpToggle = document.getElementById('pumpToggle');
+      const pumpIcon = document.getElementById('pumpIcon');
+
+      if (pumpLocked) {
+        pumpCard.style.background = '#fef2f2';
+        pumpCard.style.border = '2px solid #ef4444';
+        pumpLockStatus.style.display = 'block';
+        pumpToggle.disabled = true;
+        pumpIcon.style.color = '#ef4444';
+      } else {
+        pumpCard.style.background = '#dce7f7';
+        pumpCard.style.border = 'none';
+        pumpLockStatus.style.display = 'none';
+        pumpToggle.disabled = false;
+        pumpIcon.style.color = '#4169b3';
+      }
     }
 
     // Update flow status message
     function updateFlowStatus() {
       const statusEl = document.getElementById('flowStatus');
-      
-      if (sensorData.flowRate > 8) {
+      if (!statusEl) return;
+
+      // Check pH status
+      if (sensorData.ph > 0) {
+        if (sensorData.ph >= 6.5 && sensorData.ph <= 8.5) {
+          statusEl.textContent = '✅ Water quality is safe';
+          statusEl.style.color = '#22c55e';
+        } else if (sensorData.ph < 6.5) {
+          statusEl.textContent = '⚠️ Water is acidic';
+          statusEl.style.color = '#f59e0b';
+        } else {
+          statusEl.textContent = '⚠️ Water is alkaline';
+          statusEl.style.color = '#f59e0b';
+        }
+      } else if (sensorData.flowRate > 8) {
         statusEl.textContent = '✅ Flow is stable';
         statusEl.style.color = '#22c55e';
-      } 
-      else if (sensorData.flowRate > 4) {
+      } else if (sensorData.flowRate > 4) {
         statusEl.textContent = '⚠️ Flow is moderate';
         statusEl.style.color = '#f59e0b';
-      } 
-      else {
+      } else {
         statusEl.textContent = '❌ Low flow detected';
         statusEl.style.color = '#ef4444';
       }
@@ -964,61 +1095,19 @@
       const indicator = document.getElementById('statusIndicator');
       const statusText = document.getElementById('statusText');
       const connectBtn = document.getElementById('connectBtn');
-      
+
+      connectBtn.disabled = false;
+
       if (connected) {
         indicator.classList.add('connected');
-        statusText.textContent = '✅ Connected to Device';
+        statusText.textContent = '✅ Connected to MQTT Broker';
         connectBtn.textContent = 'Disconnect';
-        connectBtn.onclick = disconnectSerial;
+        connectBtn.onclick = disconnectMQTT;
       } else {
         indicator.classList.remove('connected');
-        statusText.textContent = '❌ Not Connected';
-        connectBtn.textContent = 'Connect to Device';
-        connectBtn.onclick = connectSerial;
-      }
-    }
-
-    // Update reading status button (NEW FUNCTION)
-    function updateReadingStatus(reading) {
-      // Try to find the reading button
-      const readingBtn = document.getElementById('readingBtn');
-      
-      if (readingBtn) {
-        if (reading) {
-          readingBtn.textContent = '⏸️ Stop Reading';
-          readingBtn.style.background = '#ef4444';  // Red when reading
-        } else {
-          readingBtn.textContent = '▶️ Start Reading';
-          readingBtn.style.background = '#22c55e';  // Green when stopped
-        }
-      }
-    }
-
-    // ============================================
-    // SENDING COMMANDS TO ESP32
-    // ============================================
-
-    // Send text command via USB
-    async function sendCommand(command) {
-      // Check if connected
-      if (!port || !isConnected) {
-        alert('⚠️ Please connect to device first');
-        return;
-      }
-      
-      try {
-        // Convert text to bytes
-        const encoder = new TextEncoder();
-        const writer = port.writable.getWriter();
-        
-        // Send command with newline
-        await writer.write(encoder.encode(command + '\n'));
-        writer.releaseLock();
-        
-        console.log('📤 Sent command:', command);
-        
-      } catch (error) {
-        console.error('❌ Send error:', error);
+        statusText.textContent = '❌ Not Connected to MQTT';
+        connectBtn.textContent = 'Connect to MQTT Broker';
+        connectBtn.onclick = connectMQTT;
       }
     }
 
@@ -1029,32 +1118,46 @@
     // Toggle pump ON/OFF
     function togglePump() {
       pumpState = document.getElementById('pumpToggle').checked;
+
+      // Publish command to ESP32 via MQTT
+      const command = pumpState ? 'PUMP_ON' : 'PUMP_OFF';
+      publishCommand(command);
+
+      console.log('🔄 Pump command sent:', command);
+    }
+
+    // Reset safety lockout
+    function resetSafety() {
+      if (!isConnected) {
+        alert('⚠️ Please connect to MQTT broker first');
+        return;
+      }
+
+      publishCommand('RESET_SAFETY');
+      console.log('🔓 Safety reset command sent');
       
-      // Send command to ESP32
-      const command = pumpState ? 'PUMP:ON' : 'PUMP:OFF';
-      sendCommand(command);
-      
-      console.log('🔄 Pump:', pumpState ? 'ON' : 'OFF');
+      // Hide alert banner
+      document.getElementById('alertBanner').style.display = 'none';
     }
 
     // Change operation mode
     function setMode(mode) {
       currentMode = mode;
-      
+
       // Update button styles
       document.getElementById('manualBtn').classList.remove('active');
       document.getElementById('aiBtn').classList.remove('active');
-      
+
       if (mode === 'manual') {
         document.getElementById('manualBtn').classList.add('active');
       } else {
         document.getElementById('aiBtn').classList.add('active');
       }
-      
-      // Send mode to ESP32
-      const command = `MODE:${mode.toUpperCase()}`;
-      sendCommand(command);
-      
+
+      // Publish mode change via MQTT
+      const command = `MODE_${mode.toUpperCase()}`;
+      publishCommand(command);
+
       console.log('🤖 Mode changed to:', mode);
     }
 
@@ -1064,13 +1167,15 @@
 
     // Simulate data when not connected (for testing UI)
     function simulateData() {
-      // Only simulate if NOT connected to real device
+      // Only simulate if NOT connected to real MQTT broker
       if (!isConnected) {
+        sensorData.ph = 6.5 + Math.random() * 2;
+        sensorData.turbidity = 200 + Math.random() * 300;
         sensorData.tds = 450 + Math.random() * 100;
         sensorData.pressure = 1.5 + Math.random() * 0.5;
         sensorData.flowRate = 8 + Math.random() * 4;
         sensorData.flowProgress = 40 + Math.random() * 30;
-        
+
         addToHistory();
         updateUI();
       }
@@ -1086,8 +1191,12 @@
     // Initialize UI on page load
     updateUI();
 
-    console.log('🚀 SmarterWater System Ready');
-    console.log('📱 Connect your ESP32 via USB to start');
+    console.log('🚀 SmarterWater MQTT System Ready');
+    console.log('📡 MQTT Broker:', MQTT_BROKER + ':' + MQTT_PORT);
+    console.log('📤 Control Topic:', MQTT_TOPIC_CONTROL);
+    console.log('📥 Sensors Topic:', MQTT_TOPIC_SENSORS);
+    console.log('🆔 Client ID:', MQTT_CLIENT_ID);
   </script>
 </body>
+
 </html>

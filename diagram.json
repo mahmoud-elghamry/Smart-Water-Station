@@ -6,34 +6,15 @@
     {
       "type": "board-esp32-devkit-c-v4",
       "id": "esp",
-      "top": 0,
+      "top": 50,
       "left": 0,
       "attrs": {}
     },
     {
-      "type": "wokwi-relay-module",
-      "id": "relay1",
-      "top": 200,
-      "left": 0,
-      "attrs": {
-        "label": "PUMP"
-      }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "led1",
-      "top": 240,
-      "left": 110,
-      "attrs": {
-        "color": "blue",
-        "label": "Status"
-      }
-    },
-    {
       "type": "wokwi-ssd1306",
       "id": "oled1",
-      "top": 0,
-      "left": 170,
+      "top": -70,
+      "left": 0,
       "attrs": {
         "i2cAddr": "0x3c"
       }
@@ -41,28 +22,47 @@
     {
       "type": "wokwi-potentiometer",
       "id": "pot_ph",
-      "top": 120,
+      "top": 60,
       "left": 170,
       "attrs": {
         "label": "pH Control"
       }
     },
     {
-      "type": "wokwi-potentiometer",
-      "id": "pot_turb",
-      "top": 220,
+      "type": "wokwi-photoresistor-sensor",
+      "id": "ldr_turb",
+      "top": 160,
       "left": 170,
       "attrs": {
         "label": "Turbidity"
       }
     },
     {
-      "type": "wokwi-potentiometer",
-      "id": "pot_flow",
-      "top": 320,
-      "left": 170,
+      "type": "wokwi-hc-sr04",
+      "id": "ultrasonic_flow",
+      "top": 250,
+      "left": 130,
       "attrs": {
         "label": "Flow Rate"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay1",
+      "top": 60,
+      "left": -150,
+      "attrs": {
+        "label": "PUMP"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 160,
+      "left": -100,
+      "attrs": {
+        "color": "blue",
+        "label": "Status"
       }
     }
   ],
@@ -84,7 +84,8 @@
       "oled1:SDA",
       "green",
       [
-        "v0"
+        "v-20",
+        "h0"
       ]
     ],
     [
@@ -92,7 +93,8 @@
       "oled1:SCL",
       "yellow",
       [
-        "v0"
+        "v-20",
+        "h0"
       ]
     ],
     [
@@ -100,7 +102,8 @@
       "oled1:VCC",
       "red",
       [
-        "v0"
+        "v-20",
+        "h0"
       ]
     ],
     [
@@ -108,6 +111,16 @@
       "oled1:GND",
       "black",
       [
+        "v-20",
+        "h0"
+      ]
+    ],
+    [
+      "esp:34",
+      "pot_ph:SIG",
+      "purple",
+      [
+        "h50",
         "v0"
       ]
     ],
@@ -116,6 +129,7 @@
       "pot_ph:VCC",
       "red",
       [
+        "h20",
         "v0"
       ]
     ],
@@ -124,62 +138,81 @@
       "pot_ph:GND",
       "black",
       [
-        "v0"
-      ]
-    ],
-    [
-      "esp:34",
-      "pot_ph:SIG",
-      "purple",
-      [
-        "v0"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "pot_turb:VCC",
-      "red",
-      [
-        "v0"
-      ]
-    ],
-    [
-      "esp:GND",
-      "pot_turb:GND",
-      "black",
-      [
+        "h20",
         "v0"
       ]
     ],
     [
       "esp:35",
-      "pot_turb:SIG",
+      "ldr_turb:AO",
       "orange",
       [
-        "v0"
+        "h60",
+        "v80"
       ]
     ],
     [
       "esp:3V3",
-      "pot_flow:VCC",
+      "ldr_turb:VCC",
       "red",
       [
-        "v0"
+        "h40",
+        "v60"
       ]
     ],
     [
       "esp:GND",
-      "pot_flow:GND",
+      "ldr_turb:GND",
       "black",
       [
-        "v0"
+        "h40",
+        "v60"
       ]
     ],
     [
       "esp:32",
-      "pot_flow:SIG",
+      "ultrasonic_flow:TRIG",
       "cyan",
       [
+        "h0",
+        "v120"
+      ]
+    ],
+    [
+      "esp:33",
+      "ultrasonic_flow:ECHO",
+      "blue",
+      [
+        "h0",
+        "v120"
+      ]
+    ],
+    [
+      "esp:3V3",
+      "ultrasonic_flow:VCC",
+      "red",
+      [
+        "v0",
+        "h80",
+        "v150"
+      ]
+    ],
+    [
+      "esp:GND",
+      "ultrasonic_flow:GND",
+      "black",
+      [
+        "v0",
+        "h80",
+        "v150"
+      ]
+    ],
+    [
+      "esp:2",
+      "relay1:IN",
+      "blue",
+      [
+        "h-50",
         "v0"
       ]
     ],
@@ -188,6 +221,7 @@
       "relay1:VCC",
       "red",
       [
+        "h-30",
         "v0"
       ]
     ],
@@ -196,14 +230,7 @@
       "relay1:GND",
       "black",
       [
-        "v0"
-      ]
-    ],
-    [
-      "esp:2",
-      "relay1:IN",
-      "blue",
-      [
+        "h-30",
         "v0"
       ]
     ],
@@ -211,25 +238,19 @@
       "relay1:NO",
       "led1:A",
       "green",
-      [
-        "v0"
-      ]
+      []
     ],
     [
       "relay1:COM",
       "esp:3V3",
       "red",
-      [
-        "v0"
-      ]
+      []
     ],
     [
       "led1:C",
       "esp:GND",
       "black",
-      [
-        "v0"
-      ]
+      []
     ]
   ]
 }

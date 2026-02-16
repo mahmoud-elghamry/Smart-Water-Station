@@ -3,14 +3,32 @@
 An IoT-based water quality monitoring and management system built around the ESP32 microcontroller. The system reads multiple water sensors in real time, applies safety logic at the edge, and streams data to a web dashboard over USB Serial. An AI-powered security module adds physical intrusion detection and can trigger emergency shutdowns autonomously.
 
 ---
+## Project Structure
 
-## System Overview
-
-| Component | Technology | Role |
-|-----------|-----------|------|
-| **Firmware** | C++ / Arduino / PlatformIO | Sensor reading, pump control, safety state machine |
-| **Web Dashboard** | HTML / CSS / JavaScript | Real-time monitoring via Web Serial API |
-| **AI Module** | Python / OpenCV / Flask | Face-based intrusion detection, emergency override |
+```
+Smart-Water-Station/
+├── firmware/
+│   ├── src/
+│   │   ├── main.cpp
+│   │   ├── Config.h
+│   │   ├── StateMachine.h
+│   │   ├── SensorManager.cpp
+│   │   ├── SensorManager.h
+│   │   ├── CommsHandler.cpp
+│   │   └── CommsHandler.h
+│   ├── include/
+│   ├── lib/
+│   ├── test/
+│   └── platformio.ini
+├── ai/
+│   ├── main.py
+│   ├── security.py
+│   ├── config.json
+│   └── requirements.txt
+├── web/
+│   └── index.html
+└── README.md
+```
 
 ### Architecture
 
@@ -153,32 +171,7 @@ All communication between the ESP32 and clients uses JSON over USB Serial at 115
 
 ---
 
-## Project Structure
 
-```
-Smart-Water-Station/
-├── firmware/
-│   ├── src/
-│   │   ├── main.cpp
-│   │   ├── Config.h
-│   │   ├── StateMachine.h
-│   │   ├── SensorManager.cpp
-│   │   ├── SensorManager.h
-│   │   ├── CommsHandler.cpp
-│   │   └── CommsHandler.h
-│   ├── include/
-│   ├── lib/
-│   ├── test/
-│   └── platformio.ini
-├── ai/
-│   ├── main.py
-│   ├── security.py
-│   ├── config.json
-│   └── requirements.txt
-├── web/
-│   └── index.html
-└── README.md
-```
 
 ---
 

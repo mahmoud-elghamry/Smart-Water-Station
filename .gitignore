@@ -1,4 +1,39 @@
-.pio
-.vscode/
+# ===== Python =====
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.env
+venv/
+env/
+.venv/
+
+# Python logs
+ai/logs/
+
+# ===== PlatformIO =====
+firmware/.pio/
+firmware/.vscode/
+firmware/compile_commands.json
+
+# ===== IDE & Editor =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cache/
+
+# ===== System Files =====
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ===== Misc =====
+*.log
+*.bak
+*.tmp

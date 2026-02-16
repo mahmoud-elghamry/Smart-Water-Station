@@ -1,0 +1,33 @@
+{
+    "serial": {
+        "port": "COM3",
+        "baud_rate": 115200,
+        "timeout": 1.0,
+        "reconnect_delay": 5
+    },
+    "security": {
+        "detection_enabled": true,
+        "detection_mode": "face",
+        "sensitivity": 1.1,
+        "min_neighbors": 4,
+        "camera_index": 0,
+        "show_preview": true
+    },
+    "logging": {
+        "enabled": true,
+        "level": "INFO",
+        "file": "logs/water_station.log",
+        "max_size_mb": 10,
+        "backup_count": 3
+    },
+    "api": {
+        "enabled": false,
+        "host": "0.0.0.0",
+        "port": 5000,
+        "debug": false
+    },
+    "alerts": {
+        "emergency_stop_on_detection": true,
+        "cooldown_seconds": 5
+    }
+}

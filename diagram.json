@@ -23,7 +23,7 @@
       "type": "wokwi-potentiometer",
       "id": "pot_ph",
       "top": 60,
-      "left": 170,
+      "left": 200,
       "attrs": {
         "label": "pH Control"
       }
@@ -32,7 +32,7 @@
       "type": "wokwi-photoresistor-sensor",
       "id": "ldr_turb",
       "top": 160,
-      "left": 170,
+      "left": 200,
       "attrs": {
         "label": "Turbidity"
       }
@@ -40,19 +40,56 @@
     {
       "type": "wokwi-hc-sr04",
       "id": "ultrasonic_flow",
-      "top": 250,
-      "left": 130,
+      "top": 280,
+      "left": 150,
       "attrs": {
         "label": "Flow Rate"
+      }
+    },
+    {
+      "type": "wokwi-ntc-temperature-sensor",
+      "id": "ntc_temp",
+      "top": 60,
+      "left": 330,
+      "attrs": {
+        "label": "Water Temp"
       }
     },
     {
       "type": "wokwi-relay-module",
       "id": "relay1",
       "top": 60,
-      "left": -150,
+      "left": -170,
       "attrs": {
         "label": "PUMP"
+      }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer1",
+      "top": 170,
+      "left": -170,
+      "attrs": {
+        "label": "Alert"
+      }
+    },
+    {
+      "type": "wokwi-rgb-led",
+      "id": "rgb1",
+      "top": 260,
+      "left": -140,
+      "attrs": {
+        "label": "Status"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_reset",
+      "top": 350,
+      "left": -130,
+      "attrs": {
+        "label": "RESET",
+        "color": "red"
       }
     },
     {
@@ -62,195 +99,53 @@
       "left": -100,
       "attrs": {
         "color": "blue",
-        "label": "Status"
+        "label": "Pump LED"
       }
     }
   ],
   "connections": [
-    [
-      "esp:TX",
-      "$serialMonitor:RX",
-      "",
-      []
-    ],
-    [
-      "esp:RX",
-      "$serialMonitor:TX",
-      "",
-      []
-    ],
-    [
-      "esp:21",
-      "oled1:SDA",
-      "green",
-      [
-        "v-20",
-        "h0"
-      ]
-    ],
-    [
-      "esp:22",
-      "oled1:SCL",
-      "yellow",
-      [
-        "v-20",
-        "h0"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "oled1:VCC",
-      "red",
-      [
-        "v-20",
-        "h0"
-      ]
-    ],
-    [
-      "esp:GND",
-      "oled1:GND",
-      "black",
-      [
-        "v-20",
-        "h0"
-      ]
-    ],
-    [
-      "esp:34",
-      "pot_ph:SIG",
-      "purple",
-      [
-        "h50",
-        "v0"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "pot_ph:VCC",
-      "red",
-      [
-        "h20",
-        "v0"
-      ]
-    ],
-    [
-      "esp:GND",
-      "pot_ph:GND",
-      "black",
-      [
-        "h20",
-        "v0"
-      ]
-    ],
-    [
-      "esp:35",
-      "ldr_turb:AO",
-      "orange",
-      [
-        "h60",
-        "v80"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "ldr_turb:VCC",
-      "red",
-      [
-        "h40",
-        "v60"
-      ]
-    ],
-    [
-      "esp:GND",
-      "ldr_turb:GND",
-      "black",
-      [
-        "h40",
-        "v60"
-      ]
-    ],
-    [
-      "esp:32",
-      "ultrasonic_flow:TRIG",
-      "cyan",
-      [
-        "h0",
-        "v120"
-      ]
-    ],
-    [
-      "esp:33",
-      "ultrasonic_flow:ECHO",
-      "blue",
-      [
-        "h0",
-        "v120"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "ultrasonic_flow:VCC",
-      "red",
-      [
-        "v0",
-        "h80",
-        "v150"
-      ]
-    ],
-    [
-      "esp:GND",
-      "ultrasonic_flow:GND",
-      "black",
-      [
-        "v0",
-        "h80",
-        "v150"
-      ]
-    ],
-    [
-      "esp:2",
-      "relay1:IN",
-      "blue",
-      [
-        "h-50",
-        "v0"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "relay1:VCC",
-      "red",
-      [
-        "h-30",
-        "v0"
-      ]
-    ],
-    [
-      "esp:GND",
-      "relay1:GND",
-      "black",
-      [
-        "h-30",
-        "v0"
-      ]
-    ],
-    [
-      "relay1:NO",
-      "led1:A",
-      "green",
-      []
-    ],
-    [
-      "relay1:COM",
-      "esp:3V3",
-      "red",
-      []
-    ],
-    [
-      "led1:C",
-      "esp:GND",
-      "black",
-      []
-    ]
+    ["esp:TX", "$serialMonitor:RX", "", []],
+    ["esp:RX", "$serialMonitor:TX", "", []],
+
+    ["esp:21", "oled1:SDA", "green", ["v-20", "h0"]],
+    ["esp:22", "oled1:SCL", "yellow", ["v-20", "h0"]],
+    ["esp:3V3", "oled1:VCC", "red", ["v-20", "h0"]],
+    ["esp:GND", "oled1:GND", "black", ["v-20", "h0"]],
+
+    ["esp:34", "pot_ph:SIG", "purple", ["h50", "v0"]],
+    ["esp:3V3", "pot_ph:VCC", "red", ["h20", "v0"]],
+    ["esp:GND", "pot_ph:GND", "black", ["h20", "v0"]],
+
+    ["esp:35", "ldr_turb:AO", "orange", ["h60", "v80"]],
+    ["esp:3V3", "ldr_turb:VCC", "red", ["h40", "v60"]],
+    ["esp:GND", "ldr_turb:GND", "black", ["h40", "v60"]],
+
+    ["esp:32", "ultrasonic_flow:TRIG", "cyan", ["h0", "v120"]],
+    ["esp:33", "ultrasonic_flow:ECHO", "blue", ["h0", "v120"]],
+    ["esp:3V3", "ultrasonic_flow:VCC", "red", ["v0", "h80", "v150"]],
+    ["esp:GND", "ultrasonic_flow:GND", "black", ["v0", "h80", "v150"]],
+
+    ["esp:36", "ntc_temp:OUT", "magenta", ["h100", "v0"]],
+    ["esp:3V3", "ntc_temp:VCC", "red", ["h80", "v0"]],
+    ["esp:GND", "ntc_temp:GND", "black", ["h80", "v0"]],
+
+    ["esp:2", "relay1:IN", "blue", ["h-50", "v0"]],
+    ["esp:3V3", "relay1:VCC", "red", ["h-30", "v0"]],
+    ["esp:GND", "relay1:GND", "black", ["h-30", "v0"]],
+
+    ["relay1:NO", "led1:A", "green", []],
+    ["relay1:COM", "esp:3V3", "red", []],
+    ["led1:C", "esp:GND", "black", []],
+
+    ["esp:25", "buzzer1:1", "brown", ["h-60", "v100"]],
+    ["buzzer1:2", "esp:GND", "black", ["h-40", "v100"]],
+
+    ["esp:26", "rgb1:R", "red", ["h-70", "v160"]],
+    ["esp:27", "rgb1:G", "green", ["h-60", "v160"]],
+    ["esp:14", "rgb1:B", "blue", ["h-50", "v160"]],
+    ["rgb1:COM", "esp:GND", "black", ["h-40", "v160"]],
+
+    ["esp:4", "btn_reset:1.l", "white", ["h-80", "v220"]],
+    ["btn_reset:2.l", "esp:GND", "black", ["h-60", "v220"]]
   ]
 }

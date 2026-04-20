@@ -1,0 +1,19 @@
+{
+    "mqtt": {
+        "broker": "broker.hivemq.com",
+        "port": 1883,
+        "topic_control": "grad/project/control",
+        "topic_sensors": "grad/project/sensors"
+    },
+    "detection": {
+        "cascade_file": "haarcascade_frontalface_default.xml",
+        "scale_factor": 1.1,
+        "min_neighbors": 4,
+        "cooldown_seconds": 2,
+        "camera_index": 0
+    },
+    "logging": {
+        "level": "INFO",
+        "file": null
+    }
+}

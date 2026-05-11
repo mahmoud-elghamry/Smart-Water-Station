@@ -1,25 +1,48 @@
 """
 Smart Water Station V2.0 - AI Controller Module
-Main entry point with Flask API and enhanced logging
+Main entry point with FastAPI and enhanced logging
 """
 
 import serial
 import time
 import json
 import threading
+import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
-from typing import Optional
+from typing import Optional, List
 from security import SecurityMonitor
 
-# Optional Flask imports
-try:
-    from flask import Flask, jsonify, request
-    from flask_cors import CORS
-    FLASK_AVAILABLE = True
-except ImportError:
-    FLASK_AVAILABLE = False
+# FastAPI imports
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+import uvicorn
+
+
+# ============== Pydantic Models ==============
+class CommandRequest(BaseModel):
+    """Request model for sending commands to ESP32"""
+    cmd: str = Field(..., description="Command name (e.g., EMERGENCY_STOP, SET_PUMP)")
+    state: Optional[str] = Field(None, description="Command state (e.g., ON, OFF)")
+    value: Optional[float] = Field(None, description="Optional numeric value")
+
+
+class CommandResponse(BaseModel):
+    """Response model for command execution"""
+    success: bool
+    message: str = "Command sent"
+
+
+class StatusResponse(BaseModel):
+    """Response model for system status"""
+    connected: bool
+    state: dict
+    telemetry: dict
+    security: dict
+    threat_active: bool
 
 
 def load_config(config_path: str = 'config.json') -> dict:
@@ -102,6 +125,9 @@ class AIController:
         self.latest_telemetry = {}
         self.latest_state = {'state': 'UNKNOWN', 'error': 'NONE'}
         
+        # WebSocket clients for real-time updates
+        self.ws_clients: List[WebSocket] = []
+        
     def connect_serial(self) -> bool:
         """Establish serial connection with retry logic"""
         while self.running:
@@ -165,11 +191,38 @@ class AIController:
                         
                     self.last_threat_status = True
                     
+                    # Broadcast threat to WebSocket clients
+                    self._broadcast_ws({
+                        'type': 'security_alert',
+                        'threat': True,
+                        'face_count': face_count,
+                        'timestamp': current_time
+                    })
+                    
             elif not threat_detected and self.last_threat_status:
                 self.logger.info("Security clear")
                 self.last_threat_status = False
                 
+                # Broadcast clear to WebSocket clients
+                self._broadcast_ws({
+                    'type': 'security_alert',
+                    'threat': False,
+                    'face_count': 0,
+                    'timestamp': current_time
+                })
+                
             time.sleep(0.05)  # Faster loop for smoother video
+    
+    def _broadcast_ws(self, data: dict):
+        """Broadcast data to all connected WebSocket clients"""
+        disconnected = []
+        for ws in self.ws_clients:
+            try:
+                asyncio.run(ws.send_json(data))
+            except Exception:
+                disconnected.append(ws)
+        for ws in disconnected:
+            self.ws_clients.remove(ws)
             
     def read_telemetry(self):
         """Telemetry reading thread"""
@@ -195,9 +248,22 @@ class AIController:
                 self.latest_telemetry[sensor] = json_data
                 self.logger.debug(f"RX Telemetry: {sensor}={json_data.get('value')}")
                 
+                # Broadcast telemetry to WebSocket clients
+                self._broadcast_ws({
+                    'type': 'telemetry_update',
+                    'sensor': sensor,
+                    'data': json_data
+                })
+                
             elif msg_type == 'state':
                 self.latest_state = json_data
                 self.logger.info(f"RX State: {json_data.get('state')} (Error: {json_data.get('error')})")
+                
+                # Broadcast state change to WebSocket clients
+                self._broadcast_ws({
+                    'type': 'state_update',
+                    'data': json_data
+                })
                 
             elif msg_type == 'pong':
                 self.logger.debug("RX Pong")
@@ -259,40 +325,113 @@ class AIController:
         self.logger.info("AI Controller stopped")
 
 
-# ============== Flask API ==============
-def create_api(controller: AIController) -> 'Flask':
-    """Create Flask API server"""
-    if not FLASK_AVAILABLE:
-        raise ImportError("Flask not installed")
-        
-    app = Flask(__name__)
-    CORS(app)
+# ============== FastAPI Application ==============
+def create_app(controller: AIController) -> FastAPI:
+    """Create FastAPI application with all routes"""
     
-    @app.route('/api/status')
-    def get_status():
-        return jsonify(controller.get_status())
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """Startup and shutdown events"""
+        controller.logger.info("🚀 FastAPI server starting...")
+        yield
+        controller.logger.info("⛔ FastAPI server shutting down...")
+    
+    app = FastAPI(
+        title="Smart Water Station API",
+        description="AI-powered water station monitoring and control system",
+        version="2.0.0",
+        lifespan=lifespan
+    )
+    
+    # CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    # ── REST Endpoints ──────────────────────────────────
+    
+    @app.get("/api/status", response_model=StatusResponse, tags=["Monitoring"])
+    async def get_status():
+        """Get full system status including telemetry, state, and security info"""
+        return controller.get_status()
+    
+    @app.post("/api/command", response_model=CommandResponse, tags=["Control"])
+    async def send_command(req: CommandRequest):
+        """Send a command to the ESP32 controller"""
+        success = controller.send_command(req.cmd, req.state, req.value)
+        if not success:
+            raise HTTPException(
+                status_code=503,
+                detail="Serial connection not available"
+            )
+        return CommandResponse(success=True, message=f"Command '{req.cmd}' sent successfully")
+    
+    @app.get("/api/telemetry", tags=["Monitoring"])
+    async def get_telemetry():
+        """Get latest sensor telemetry data"""
+        return controller.latest_telemetry
+    
+    @app.get("/api/security", tags=["Security"])
+    async def get_security():
+        """Get security detection statistics"""
+        return controller.security.get_stats()
+    
+    @app.get("/api/health", tags=["System"])
+    async def health_check():
+        """Health check endpoint"""
+        return {
+            "status": "healthy",
+            "serial_connected": controller.serial_conn is not None and controller.serial_conn.is_open,
+            "camera_active": controller.security.cap is not None,
+            "uptime": "running"
+        }
+    
+    # ── WebSocket for Real-time Updates ─────────────────
+    
+    @app.websocket("/ws/live")
+    async def websocket_live(ws: WebSocket):
+        """
+        WebSocket endpoint for real-time telemetry and security alerts.
+        Connect to ws://host:port/ws/live to receive live updates.
+        """
+        await ws.accept()
+        controller.ws_clients.append(ws)
+        controller.logger.info(f"📡 WebSocket client connected ({len(controller.ws_clients)} total)")
         
-    @app.route('/api/command', methods=['POST'])
-    def send_command():
-        data = request.get_json()
-        cmd = data.get('cmd')
-        state = data.get('state')
-        value = data.get('value')
-        
-        if not cmd:
-            return jsonify({'error': 'Missing cmd'}), 400
+        try:
+            # Send initial status on connect
+            await ws.send_json({
+                'type': 'initial_status',
+                'data': controller.get_status()
+            })
             
-        success = controller.send_command(cmd, state, value)
-        return jsonify({'success': success})
-        
-    @app.route('/api/telemetry')
-    def get_telemetry():
-        return jsonify(controller.latest_telemetry)
-        
-    @app.route('/api/security')
-    def get_security():
-        return jsonify(controller.security.get_stats())
-        
+            # Keep connection alive and stream telemetry
+            while controller.running:
+                try:
+                    # Send periodic updates every second
+                    await asyncio.sleep(1)
+                    await ws.send_json({
+                        'type': 'periodic_update',
+                        'data': {
+                            'telemetry': controller.latest_telemetry,
+                            'state': controller.latest_state,
+                            'threat_active': controller.last_threat_status
+                        }
+                    })
+                except WebSocketDisconnect:
+                    break
+                    
+        except WebSocketDisconnect:
+            pass
+        finally:
+            if ws in controller.ws_clients:
+                controller.ws_clients.remove(ws)
+            controller.logger.info(f"📡 WebSocket client disconnected ({len(controller.ws_clients)} total)")
+    
     return app
 
 
@@ -309,20 +448,26 @@ if __name__ == '__main__':
     
     # Check if API should be enabled
     api_config = config.get('api', {})
-    if api_config.get('enabled', False) and FLASK_AVAILABLE:
-        # Run with Flask API
-        app = create_api(controller)
-        
+    if api_config.get('enabled', False):
         # Start controller in background thread
-        controller_thread = threading.Thread(target=controller.run)
+        controller_thread = threading.Thread(target=controller.run, name='MainController')
         controller_thread.start()
         
-        # Run Flask
-        app.run(
-            host=api_config.get('host', '0.0.0.0'),
-            port=api_config.get('port', 5000),
-            debug=api_config.get('debug', False)
-        )
+        # Create and run FastAPI app
+        app = create_app(controller)
+        
+        host = api_config.get('host', '0.0.0.0')
+        port = api_config.get('port', 5000)
+        
+        logger.info(f"📖 API Docs available at: http://{host}:{port}/docs")
+        logger.info(f"📡 WebSocket available at: ws://{host}:{port}/ws/live")
+        
+        try:
+            uvicorn.run(app, host=host, port=port, log_level="info")
+        except KeyboardInterrupt:
+            logger.info("⛔ Shutting down...")
+        finally:
+            controller.shutdown()
     else:
-        # Run standalone
+        # Run standalone without API
         controller.run()

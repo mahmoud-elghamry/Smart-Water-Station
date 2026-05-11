@@ -1,0 +1,8 @@
+<svg width="320" height="96" viewBox="0 0 320 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="96" fill="#F3F6FB"/>
+  <path d="M206 18C185 18 175 35 160 35C145 35 136 18 113 18C92 18 73 33 70 54C84 38 96 34 113 34C132 34 143 50 160 50C177 50 188 34 206 34C221 34 234 40 248 54C244 33 226 18 206 18Z" fill="#1FA9B7"/>
+  <path d="M225 28C209 28 200 40 188 40C176 40 168 28 150 28C136 28 123 38 119 52C130 42 139 39 150 39C164 39 171 50 188 50C203 50 212 39 225 39C236 39 246 43 255 52C252 38 240 28 225 28Z" fill="#2B4D8E"/>
+  <text x="66" y="78" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="48">
+    <tspan fill="#12AEB8">Smarter</tspan><tspan fill="#2B4D8E">Water</tspan>
+  </text>
+</svg>

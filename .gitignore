@@ -15,10 +15,20 @@ env/
 # Python logs
 ai/logs/
 
+# YOLO model weights (downloaded at runtime)
+*.pt
+*.onnx
+*.engine
+
 # ===== PlatformIO =====
-firmware/.pio/
-firmware/.vscode/
-firmware/compile_commands.json
+firmware/**/.pio/
+firmware/**/.vscode/
+firmware/**/compile_commands.json
+
+# ===== Web =====
+web/**/node_modules/
+web/**/dist/
+web/**/.next/
 
 # ===== IDE & Editor =====
 .vscode/

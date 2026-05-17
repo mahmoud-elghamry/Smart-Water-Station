@@ -21,7 +21,7 @@ AquaPuer is a full-stack IoT water treatment monitoring system built as a gradua
 
 ```
 ┌──────────────────┐       UART (JSON + CRC8)       ┌──────────────────────┐
-│   STM32 RTU      │ ──────────────────────────────► │   ESP32-S3 MTU       │
+│   STM32 RTU      │ ──────────────────────────────► │   ESP32-S3 MTU+AI.ML│
 │   (Field Sensors) │                                │   (Edge Controller)  │
 └──────────────────┘                                 └──────────┬───────────┘
                                                                 │

@@ -1,108 +1,155 @@
-# 🤖 AquaPuer AI Security Module
+# 🤖 AquaPuer AI Station Monitor v3.0
 
-Python-based physical security system for the Smart Water Station. Monitors a camera feed using **YOLOv8 object detection** to detect unauthorized persons near the water station, and automatically triggers an emergency stop on the ESP32 controller.
+Comprehensive visual monitoring system for the Smart Water Station. Uses **YOLOv8** object detection combined with **computer vision analysis** to monitor every aspect of the station in real time.
 
 ---
 
-## Features
+## What It Monitors
 
-| Feature | Description |
-|---------|-------------|
-| 🎯 Person Detection | YOLOv8n (nano) for real-time person detection |
-| 📹 Live Preview | Camera window with bounding boxes and status overlay |
-| 🔌 Serial Integration | Reads ESP32 telemetry, sends emergency stop commands |
-| 🌐 FastAPI Server | REST API + WebSocket for remote status monitoring |
-| 📝 Structured Logging | Rotating file logs with configurable levels |
-| ⚡ Anti-Flooding | Cooldown timer prevents duplicate emergency commands |
-| 🔄 Auto-Reconnect | Automatic serial reconnection on disconnect |
+| Detection | Method | Severity | Action |
+|-----------|--------|----------|--------|
+| 👤 **Person** | YOLOv8 person class | ⚠️ WARNING | Log + alert dashboard |
+| ⚡ **Proximity Hazard** | Person bbox ∩ danger zone | 🔴 CRITICAL | **EMERGENCY STOP** |
+| 🔥 **Fire** | HSV colour analysis (orange/red/yellow) | 🔴 CRITICAL | **EMERGENCY STOP** + fire alert |
+| 💨 **Smoke** | Grey haze + low contrast detection | 🔴 CRITICAL | **EMERGENCY STOP** + ventilation alert |
+| 🟢 **Algae** | Water ROI green tint (hue 35-85) | ⚠️ WARNING | Check chlorination |
+| 🔴 **Contamination** | Water ROI red/brown (hue 0-15, 165+) | 🔴 CRITICAL | **STOP distribution** |
+| 🟡 **Turbidity** | Water ROI yellow/murky (hue 15-35) | ⚠️ WARNING | Check filtration |
+| ⚪ **Foam** | Water ROI bright + desaturated | ⚠️ WARNING | Check for chemical spill |
+| ⚫ **Dark Water** | Water ROI very low brightness | ⚠️ WARNING | Check pipe blockage |
+| 🐕 **Animals** | YOLOv8 (cat, dog) | ℹ️ INFO | Log for awareness |
+| 🚗 **Vehicles** | YOLOv8 (car, truck, motorcycle) | ℹ️ INFO | Check if authorized |
+
+---
+
+## How It Works
+
+```
+Camera Frame (30 fps)
+    │
+    ├─► YOLOv8 Detection ─────► Person? ──► In danger zone? ──► EMERGENCY STOP
+    │                           Animal?     (pump, chemicals)
+    │                           Vehicle?
+    │
+    ├─► HSV Fire Analysis ────► Orange/red flame pixels > 0.3%? ──► CRITICAL
+    │
+    ├─► Smoke Analysis ───────► Grey haze > 2% + low contrast? ──► CRITICAL
+    │
+    └─► Water ROI Analysis ───► Colour anomaly? ──► Green (algae)
+                                                    Red (contamination)
+                                                    Yellow (turbidity)
+                                                    White (foam)
+                                                    Dark (blockage)
+    │
+    ▼
+┌──────────────────────────────────────────────────┐
+│  Alert Engine                                     │
+│  • Severity classification (INFO/WARNING/CRITICAL)│
+│  • Actionable recommendations                     │
+│  • Cooldown timer (anti-spam)                     │
+│  • WebSocket broadcast to dashboard               │
+│  • Serial command to ESP32 on CRITICAL            │
+└──────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Quick Start
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Run standalone (no API server)
 python main.py
-
-# Run with FastAPI server (set api.enabled=true in config.json)
-python main.py
-# → API docs: http://localhost:5000/docs
-# → WebSocket: ws://localhost:5000/ws/live
 ```
+
+On first run, YOLOv8 automatically downloads `yolov8n.pt` (~6 MB).
+
+**With API server:**  Set `"api": { "enabled": true }` in `config.json`:
+- API docs: http://localhost:5000/docs
+- WebSocket: ws://localhost:5000/ws/live
 
 ---
 
 ## Configuration — `config.json`
 
-```jsonc
-{
-    "serial": {
-        "port": "COM3",          // ESP32 serial port
-        "baud_rate": 115200,
-        "timeout": 1.0,
-        "reconnect_delay": 5     // Seconds between reconnect attempts
-    },
-    "security": {
-        "detection_enabled": true,
-        "detection_mode": "person",    // "person" (YOLO) or "face" (Haar Cascade)
-        "confidence": 0.5,             // YOLO confidence threshold
-        "camera_index": 0,             // 0 = default webcam
-        "show_preview": true           // Show live camera window
-    },
-    "logging": {
-        "enabled": true,
-        "level": "INFO",               // DEBUG, INFO, WARNING, ERROR
-        "file": "logs/water_station.log",
-        "max_size_mb": 10,
-        "backup_count": 3
-    },
-    "api": {
-        "enabled": false,              // Set true to start FastAPI server
-        "host": "0.0.0.0",
-        "port": 5000
-    },
-    "alerts": {
-        "emergency_stop_on_detection": true,
-        "cooldown_seconds": 5          // Minimum seconds between commands
-    }
+### Danger Zones
+
+Define rectangular areas in the camera frame where person proximity triggers CRITICAL alerts:
+
+```json
+"danger_zones": [
+    { "name": "Main Pump",        "x1": 100, "y1": 200, "x2": 300, "y2": 400 },
+    { "name": "Chemical Storage",  "x1": 400, "y1": 150, "x2": 580, "y2": 350 }
+]
+```
+
+> **Tip:** Run with `show_preview: true` to see the danger zones drawn on the camera feed. Adjust coordinates to match your actual pump/equipment positions.
+
+### Water ROI
+
+Define where water is visible in the camera for colour analysis:
+
+```json
+"water": {
+    "enabled": true,
+    "roi": { "x1": 0, "y1": 350, "x2": 640, "y2": 480 }
 }
 ```
+
+### Fire & Smoke Sensitivity
+
+```json
+"fire":  { "enabled": true, "min_area_pct": 0.3 },
+"smoke": { "enabled": true, "min_area_pct": 2.0 }
+```
+
+- `min_area_pct` — Minimum percentage of the frame that must match fire/smoke colours to trigger an alert. Lower = more sensitive.
 
 ---
 
 ## API Endpoints
 
-Available when `api.enabled` is `true` in config.json.
-
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/status` | Full system status (serial, telemetry, security) |
-| `POST` | `/api/command` | Send command to ESP32 (`{"cmd": "EMERGENCY_STOP", "state": "ON"}`) |
-| `GET` | `/api/telemetry` | Latest sensor readings |
-| `GET` | `/api/security` | Detection statistics |
-| `GET` | `/api/health` | Health check |
-| `WS` | `/ws/live` | Real-time telemetry + security alerts |
-
-Interactive API documentation is available at `http://localhost:5000/docs` (Swagger UI).
+| `GET` | `/api/status` | Full system status + active alerts + recommendations |
+| `POST` | `/api/command` | Send command to ESP32 |
+| `GET` | `/api/alerts` | Current alerts + recommendations + threat status |
+| `GET` | `/api/telemetry` | Latest sensor readings from ESP32 |
+| `GET` | `/api/security/stats` | Detection counters + camera/model status |
+| `GET` | `/api/health` | Health check (serial, camera, model) |
+| `WS` | `/ws/live` | Real-time stream: telemetry + security + alerts |
 
 ---
 
-## Detection Modes
+## Alert Format
 
-### YOLOv8 (Recommended)
-- Model: `yolov8n.pt` (nano — 6MB, fast on CPU)
-- Detects: full persons at any angle
-- Confidence threshold: configurable in `config.json`
-- Install: `pip install ultralytics`
+Every alert includes:
 
-### Haar Cascade (Fallback)
-- Built-in OpenCV classifier
-- Detects: frontal faces only
-- Less accurate, more false positives
-- No additional download needed
+```json
+{
+    "alert_type": "proximity",
+    "severity": "CRITICAL",
+    "message": "⚠️ Person in danger zone: Main Pump!",
+    "confidence": 0.92,
+    "bbox": [120, 210, 280, 390],
+    "recommendation": "EMERGENCY: Person too close to Main Pump. Activate emergency stop immediately!",
+    "timestamp": 1716000000.0
+}
+```
+
+---
+
+## Camera Preview
+
+When `show_preview: true`, the monitor shows a live annotated view:
+
+- **Red rectangles** — CRITICAL alerts (fire, proximity)
+- **Orange rectangles** — WARNING alerts (person, water anomaly)
+- **Cyan rectangles** — INFO alerts (animals, vehicles)
+- **Red dashed zones** — Configured danger zones
+- **Blue ROI** — Water analysis region
+- **Status bar** — ALL CLEAR / WARNING / CRITICAL with alert count
+
+Press **Q** to quit.
 
 ---
 
@@ -115,29 +162,6 @@ ultralytics>=8.0.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 pydantic>=2.0.0
-```
-
----
-
-## How It Works
-
-```
-Camera → YOLOv8 Detection → Person found?
-                                 │
-                         ┌───────┴────────┐
-                         │ Yes            │ No
-                         ▼                ▼
-                  Cooldown check?    Continue monitoring
-                         │
-                    ┌────┴─────┐
-                    │ Passed   │ In cooldown
-                    ▼          ▼
-              Send EMERGENCY   Skip
-              STOP to ESP32    (already sent)
-                    │
-                    ▼
-              Broadcast alert
-              to WebSocket clients
 ```
 
 ---

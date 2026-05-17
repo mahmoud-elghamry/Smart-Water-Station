@@ -3,15 +3,31 @@
         "port": "COM3",
         "baud_rate": 115200,
         "timeout": 1.0,
-        "reconnect_delay": 5
+        "reconnect_delay": 3,
+        "max_retries": 2
+    },
+    "mqtt": {
+        "enabled": true,
+        "broker": "broker.hivemq.com",
+        "port": 1883,
+        "username": "",
+        "password": "",
+        "base_topic": "aquapuer"
     },
     "security": {
         "detection_enabled": true,
-        "detection_mode": "face",
-        "sensitivity": 1.1,
-        "min_neighbors": 4,
+        "model": "yolov8s.pt",
+        "person_confidence": 0.55,
+        "general_confidence": 0.40,
         "camera_index": 0,
-        "show_preview": true
+        "show_preview": true,
+        "danger_zones": [
+            { "name": "Main Pump",        "x1": 20, "y1": 150, "x2": 160, "y2": 350 },
+            { "name": "Chemical Storage",  "x1": 480, "y1": 150, "x2": 620, "y2": 350 }
+        ],
+        "fire":  { "enabled": true, "min_area_pct": 0.3 },
+        "smoke": { "enabled": true, "min_area_pct": 8.0, "max_contrast": 25 },
+        "water": { "enabled": true, "roi": { "x1": 0, "y1": 0, "x2": 640, "y2": 100 } }
     },
     "logging": {
         "enabled": true,
@@ -21,13 +37,12 @@
         "backup_count": 3
     },
     "api": {
-        "enabled": false,
+        "enabled": true,
         "host": "0.0.0.0",
-        "port": 5000,
-        "debug": false
+        "port": 5000
     },
     "alerts": {
-        "emergency_stop_on_detection": true,
+        "emergency_stop_on_critical": true,
         "cooldown_seconds": 5
     }
 }

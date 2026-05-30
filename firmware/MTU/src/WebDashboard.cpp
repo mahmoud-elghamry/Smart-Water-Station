@@ -151,25 +151,23 @@ String WebDashboard::buildStatusJson()
   actuators["valve"] = snapshot.valveOpen;
 
   JsonObject sensors = doc["sensors"].to<JsonObject>();
-  JsonObject tds = sensors["tds"].to<JsonObject>();
-  tds["value"] = snapshot.tds.value;
-  tds["valid"] = snapshot.tds.isValid;
-  tds["error"] = errorToString(snapshot.tds.errorCode);
-
-  JsonObject pressure = sensors["pressure"].to<JsonObject>();
-  pressure["value"] = snapshot.pressure.value;
-  pressure["valid"] = snapshot.pressure.isValid;
-  pressure["error"] = errorToString(snapshot.pressure.errorCode);
-
-  JsonObject flow = sensors["flow"].to<JsonObject>();
-  flow["value"] = snapshot.flow.value;
-  flow["valid"] = snapshot.flow.isValid;
-  flow["error"] = errorToString(snapshot.flow.errorCode);
-
-  JsonObject level = sensors["level"].to<JsonObject>();
-  level["value"] = snapshot.level.value;
-  level["valid"] = snapshot.level.isValid;
-  level["error"] = errorToString(snapshot.level.errorCode);
+  auto addSensor = [&](const char* name, const SensorReading &r) {
+    JsonObject s = sensors[name].to<JsonObject>();
+    s["value"] = r.value;
+    s["valid"] = r.isValid;
+    s["error"] = errorToString(r.errorCode);
+  };
+  addSensor("turb1", snapshot.turb1);
+  addSensor("turb2", snapshot.turb2);
+  addSensor("ph1", snapshot.ph1);
+  addSensor("ph2", snapshot.ph2);
+  addSensor("flow1", snapshot.flow1);
+  addSensor("flow2", snapshot.flow2);
+  addSensor("press1", snapshot.pressure1);
+  addSensor("press2", snapshot.pressure2);
+  addSensor("temp1", snapshot.temp1);
+  addSensor("temp2", snapshot.temp2);
+  addSensor("pump_current", snapshot.pumpCurrent);
 
   JsonObject rtu = doc["rtu"].to<JsonObject>();
   rtu["enabled"] = static_cast<bool>(ENABLE_RTU_LINK);
@@ -255,12 +253,15 @@ void WebDashboard::handleConfig()
   doc["apSsid"] = WIFI_AP_SSID;
 
   JsonObject thresholds = doc["thresholds"].to<JsonObject>();
+  thresholds["maxTurbidity"] = MAX_TURBIDITY;
+  thresholds["maxPH"] = MAX_PH;
+  thresholds["minPH"] = MIN_PH;
   thresholds["maxPressure"] = MAX_PRESSURE;
   thresholds["minPressure"] = MIN_PRESSURE;
-  thresholds["maxTds"] = MAX_TDS;
-  thresholds["minTds"] = MIN_TDS;
   thresholds["maxFlowRate"] = MAX_FLOW_RATE;
-  thresholds["minWaterLevel"] = MIN_WATER_LEVEL;
+  thresholds["maxTemperature"] = MAX_TEMPERATURE;
+  thresholds["minTemperature"] = MIN_TEMPERATURE;
+  thresholds["maxPumpCurrent"] = MAX_PUMP_CURRENT;
 
   String payload;
   serializeJson(doc, payload);
@@ -287,7 +288,18 @@ void WebDashboard::handleAi()
 
 void WebDashboard::handleHealth()
 {
-  sendJson(200, "{\"ok\":true}");
+  JsonDocument doc;
+  doc["ok"] = true;
+  doc["fsReady"] = _fsReady;
+  doc["firmware"] = FIRMWARE_VERSION;
+  doc["ip"] = WiFi.softAPIP().toString();
+  doc["webSocketPort"] = 81;
+  doc["dataForwarder"] = static_cast<bool>(ENABLE_DATA_FORWARDER);
+  doc["pumpCurrentSensor"] = static_cast<bool>(ENABLE_PUMP_CURRENT_SENSOR);
+
+  String payload;
+  serializeJson(doc, payload);
+  sendJson(200, payload);
 }
 
 void WebDashboard::handleNotFound()

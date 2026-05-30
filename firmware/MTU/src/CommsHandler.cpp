@@ -222,16 +222,20 @@ void CommsHandler::sendError(const char *message)
   Serial.println();
 }
 
-void CommsHandler::sendDataForwarderLine(float tds, float pressure,
-                                         float flow, float level)
+void CommsHandler::sendDataForwarderLine(float t1, float t2, float ph1, float ph2,
+                                         float f1, float f2, float p1, float p2,
+                                         float temp1, float temp2, float pumpCurrent)
 {
   // Edge Impulse data forwarder expects: value1,value2,...,valueN\n
-  // No JSON, no labels - just comma-separated floats.
-  Serial.print(tds, 2);
-  Serial.print(",");
-  Serial.print(pressure, 2);
-  Serial.print(",");
-  Serial.print(flow, 2);
-  Serial.print(",");
-  Serial.println(level, 2);
+  Serial.print(t1, 2);  Serial.print(",");
+  Serial.print(t2, 2);  Serial.print(",");
+  Serial.print(ph1, 2); Serial.print(",");
+  Serial.print(ph2, 2); Serial.print(",");
+  Serial.print(f1, 2);  Serial.print(",");
+  Serial.print(f2, 2);  Serial.print(",");
+  Serial.print(p1, 2);  Serial.print(",");
+  Serial.print(p2, 2);  Serial.print(",");
+  Serial.print(temp1, 2); Serial.print(",");
+  Serial.print(temp2, 2); Serial.print(",");
+  Serial.println(pumpCurrent, 2);
 }

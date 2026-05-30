@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="520" viewBox="0 0 1180 520" role="img" aria-labelledby="title desc">
+  <title id="title">Edge Impulse Flow</title>
+  <desc id="desc">Edge Impulse training and deployment flow for the MTU 11-feature vector.</desc>
+  <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0f172a" flood-opacity=".14"/></filter><marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M2 2 L10 6 L2 10 Z" fill="#334155"/></marker><style>.bg{fill:#fbfefb}.title{font:700 30px Arial;fill:#0f172a}.card{fill:#fff;stroke:#d8e3ef;stroke-width:1.4;rx:18;filter:url(#shadow)}.label{font:700 18px Arial;fill:#0f172a}.small{font:400 14px Arial;fill:#475569}.tiny{font:400 12px Arial;fill:#64748b}.line{stroke:#334155;stroke-width:2.5;fill:none;marker-end:url(#arrow)}</style></defs>
+  <rect width="1180" height="520" class="bg"/>
+  <text x="54" y="58" class="title">Edge Impulse Training and Deployment Flow</text>
+  <rect x="60" y="170" width="230" height="120" class="card"/><text x="90" y="213" class="label">MTU Telemetry</text><text x="90" y="242" class="small">11-feature order</text><text x="90" y="265" class="tiny">turb, pH, flow, pressure, temp, current</text>
+  <rect x="390" y="95" width="250" height="110" class="card"/><text x="420" y="137" class="label">Python Logger</text><text x="420" y="166" class="small">labels + state</text><text x="420" y="187" class="tiny">edge_impulse_dataset.csv</text>
+  <rect x="390" y="275" width="250" height="110" class="card"/><text x="420" y="317" class="label">Data Forwarder</text><text x="420" y="346" class="small">clean serial CSV</text><text x="420" y="367" class="tiny">axis names must match</text>
+  <rect x="740" y="180" width="230" height="110" class="card"/><text x="770" y="222" class="label">Edge Impulse Studio</text><text x="770" y="251" class="small">train + evaluate</text><text x="770" y="272" class="tiny">same feature order</text>
+  <rect x="740" y="350" width="230" height="95" class="card"/><text x="770" y="389" class="label">Arduino Export</text><text x="770" y="416" class="tiny">lib/edge_impulse/</text>
+  <rect x="1010" y="350" width="130" height="95" class="card"/><text x="1030" y="389" class="label">AiService</text><text x="1030" y="416" class="tiny">run_classifier()</text>
+  <path d="M290 215 C330 180 348 150 388 150" class="line"/><path d="M290 245 C330 290 348 330 388 330" class="line"/><path d="M640 150 C700 160 700 215 738 226" class="line"/><path d="M640 330 C700 318 700 260 738 246" class="line"/><path d="M855 290 V348" class="line"/><path d="M970 398 H1008" class="line"/>
+</svg>

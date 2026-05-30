@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">MTU Architecture</title>
+  <desc id="desc">Detailed ESP32 MTU architecture showing tasks, shared snapshot, sensors, web dashboard, serial telemetry, RTU and Edge Impulse.</desc>
+  <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0f172a" flood-opacity=".14"/></filter><marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M2 2 L10 6 L2 10 Z" fill="#334155"/></marker><style>.bg{fill:#f8fbff}.title{font:700 32px Arial;fill:#0f172a}.card{fill:#fff;stroke:#d8e3ef;stroke-width:1.4;rx:18;filter:url(#shadow)}.label{font:700 17px Arial;fill:#0f172a}.small{font:400 13px Arial;fill:#475569}.tiny{font:400 12px Arial;fill:#64748b}.line{stroke:#334155;stroke-width:2.3;fill:none;marker-end:url(#arrow)}.dash{stroke:#64748b;stroke-width:2.1;stroke-dasharray:7 6;fill:none;marker-end:url(#arrow)}.head{fill:#2563eb;rx:18}.pill{fill:#eef6ff;stroke:#cfe0f5;rx:10}</style></defs>
+  <rect width="1280" height="760" class="bg"/>
+  <text x="58" y="60" class="title">ESP32-S3 MTU Architecture</text>
+  <rect x="60" y="120" width="250" height="410" class="card"/><text x="92" y="162" class="label">Input Layer</text>
+  <rect x="92" y="195" width="185" height="38" class="pill"/><text x="108" y="219" class="small">Sensor pairs</text>
+  <rect x="92" y="248" width="185" height="38" class="pill"/><text x="108" y="272" class="small">Optional temp/current</text>
+  <rect x="92" y="301" width="185" height="38" class="pill"/><text x="108" y="325" class="small">Web commands</text>
+  <rect x="92" y="354" width="185" height="38" class="pill"/><text x="108" y="378" class="small">Serial commands</text>
+  <rect x="92" y="407" width="185" height="38" class="pill"/><text x="108" y="431" class="small">RTU frames</text>
+
+  <rect x="430" y="105" width="430" height="520" class="card"/>
+  <rect x="430" y="105" width="430" height="64" class="head"/><text x="462" y="145" style="font:700 20px Arial;fill:white">FreeRTOS Task Layer</text>
+  <rect x="470" y="200" width="150" height="52" class="pill"/><text x="490" y="231" class="label">ControlTask</text>
+  <rect x="670" y="200" width="150" height="52" class="pill"/><text x="690" y="231" class="label">WebTask</text>
+  <rect x="470" y="284" width="150" height="52" class="pill"/><text x="490" y="315" class="label">SerialTask</text>
+  <rect x="670" y="284" width="150" height="52" class="pill"/><text x="690" y="315" class="label">RtuTask</text>
+  <rect x="470" y="368" width="150" height="52" class="pill"/><text x="490" y="399" class="label">AiTask</text>
+  <rect x="670" y="368" width="150" height="52" class="pill"/><text x="690" y="399" class="label">TelemetryTask</text>
+  <rect x="540" y="475" width="210" height="70" fill="#ecfeff" stroke="#bae6fd" rx="14"/><text x="570" y="505" class="label">TelemetrySnapshot</text><text x="570" y="528" class="tiny">protected by snapshotMux</text>
+
+  <rect x="980" y="120" width="230" height="410" class="card"/><text x="1012" y="162" class="label">Output Layer</text>
+  <rect x="1012" y="195" width="165" height="38" class="pill"/><text x="1028" y="219" class="small">Pump / valve / LED</text>
+  <rect x="1012" y="248" width="165" height="38" class="pill"/><text x="1028" y="272" class="small">REST API</text>
+  <rect x="1012" y="301" width="165" height="38" class="pill"/><text x="1028" y="325" class="small">WebSocket :81</text>
+  <rect x="1012" y="354" width="165" height="38" class="pill"/><text x="1028" y="378" class="small">USB serial JSON</text>
+  <rect x="1012" y="407" width="165" height="38" class="pill"/><text x="1028" y="431" class="small">AI result</text>
+
+  <path d="M310 320 H428" class="line"/><path d="M620 226 H668" class="line"/><path d="M620 310 H668" class="line"/><path d="M620 394 H668" class="line"/><path d="M645 475 C645 445 545 440 545 422" class="line"/><path d="M645 475 C645 445 745 440 745 422" class="line"/><path d="M860 322 H978" class="line"/>
+  <path d="M860 505 C910 505 930 215 978 215" class="line"/><path d="M860 505 C910 505 930 320 978 320" class="line"/><path d="M860 505 C910 505 930 375 978 375" class="line"/>
+  <rect x="82" y="600" width="1110" height="70" fill="#fff" stroke="#d8e3ef" rx="16"/>
+  <text x="112" y="630" class="label">Feature order:</text>
+  <text x="235" y="630" class="small">turb1, turb2, ph1, ph2, flow1, flow2, press1, press2, temp1, temp2, pump_current</text>
+  <text x="112" y="655" class="tiny">This order must match AiService, DataForwarder, Python dataset columns, and Edge Impulse axes.</text>
+</svg>

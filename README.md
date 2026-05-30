@@ -1,15 +1,16 @@
 <div align="center">
 
-# 🌊 AquaPuer — Smart Water Station
+# AquaPuer - Smart Water Station
 
-**AI-Powered Water Quality Monitoring & Management System**
+**Embedded water-treatment monitoring, control, dashboarding, and AI data capture**
 
-![ESP32-S3](https://img.shields.io/badge/ESP32--S3-N16R8-blue?style=flat-square&logo=espressif)
-![STM32](https://img.shields.io/badge/STM32-Blue%20Pill-03234B?style=flat-square&logo=stmicroelectronics)
+![ESP32-S3](https://img.shields.io/badge/ESP32--S3-MTU-blue?style=flat-square&logo=espressif)
+![STM32](https://img.shields.io/badge/STM32-RTU-03234B?style=flat-square&logo=stmicroelectronics)
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?style=flat-square&logo=vite)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python)
-![YOLO](https://img.shields.io/badge/YOLOv8-Detection-00FFFF?style=flat-square)
-![License](https://img.shields.io/badge/License-Academic-green?style=flat-square)
+![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?style=flat-square&logo=fastapi)
+![PlatformIO](https://img.shields.io/badge/PlatformIO-Firmware-F5822A?style=flat-square&logo=platformio)
 
 </div>
 
@@ -17,195 +18,190 @@
 
 ## Overview
 
-AquaPuer is a full-stack IoT water treatment monitoring system built as a graduation project. It combines **embedded firmware**, a **real-time web dashboard**, and an **AI security module** to monitor water quality, control actuators, and detect unauthorized physical access — all in real time.
+AquaPuer is a graduation-project smart water station. The current build uses an
+ESP32-S3 as the main controller for local sensors, pump/valve control, an
+on-board web dashboard, REST/WebSocket APIs, serial telemetry, and optional Edge
+Impulse inference. A Python controller can read the ESP32 serial stream, expose
+FastAPI endpoints, mirror data through MQTT, run camera/security monitoring, and
+save synchronized rows for Edge Impulse training.
 
+The STM32 RTU project is still present and wired back into the MTU, but its
+payload is currently the older 4-field format (`tds`, `pressure`, `flow`,
+`level`). Treat it as optional/legacy until it is upgraded to the new
+before/after-filter sensor schema.
+
+## System Map
+
+![AquaPuer system overview](docs/assets/system-overview.svg)
+
+```mermaid
+flowchart LR
+    subgraph Field["Water Station Hardware"]
+        S1["Before-filter sensors<br/>turb1, ph1, press1, flow1"]
+        S2["After-filter sensors<br/>turb2, ph2, press2, flow2"]
+        OPT["Optional sensors<br/>temp1/temp2, pump_current"]
+        ACT["Actuators<br/>pump, valve, status LED"]
+    end
+
+    subgraph MTU["ESP32-S3 MTU"]
+        FW["FreeRTOS firmware<br/>state machine + safety"]
+        FS["LittleFS dashboard"]
+        API["REST API<br/>/api/status /api/control"]
+        WS["WebSocket<br/>port 81"]
+        SERIAL["USB Serial JSON<br/>115200 baud"]
+    end
+
+    subgraph RTU["STM32 RTU - legacy optional"]
+        RFRAME["UART JSON + CRC8<br/>tds, pressure, flow, level"]
+    end
+
+    subgraph Web["Browser Dashboard"]
+        UI["React/Vite UI"]
+    end
+
+    subgraph AI["Python AI Controller"]
+        PY["Serial + FastAPI + MQTT"]
+        DATA["Dataset CSV<br/>ai/logs/edge_impulse_dataset.csv"]
+        CAM["Camera/security monitor"]
+    end
+
+    S1 --> FW
+    S2 --> FW
+    OPT -. optional .-> FW
+    FW --> ACT
+    RFRAME -. GPIO39/40 .-> FW
+    FW --> FS
+    FW --> API
+    FW --> WS
+    FW --> SERIAL
+    FS --> UI
+    WS <--> UI
+    API <--> UI
+    SERIAL <--> PY
+    PY --> DATA
+    CAM --> PY
 ```
-┌──────────────────┐       UART (JSON + CRC8)       ┌──────────────────────┐
-│   STM32 RTU      │ ──────────────────────────────► │   ESP32-S3 MTU+AI.ML│
-│   (Field Sensors) │                                │   (Edge Controller)  │
-└──────────────────┘                                 └──────────┬───────────┘
-                                                                │
-                                                   ┌────────────┼────────────┐
-                                                   │            │            │
-                                              WiFi AP      USB Serial   LittleFS
-                                              ws://81      115200 baud  Dashboard
-                                                   │            │            │
-                                                   ▼            ▼            ▼
-                                            ┌───────────┐ ┌──────────┐ ┌──────────┐
-                                            │   Web     │ │    AI    │ │ On-board │
-                                            │ Dashboard │ │  Module  │ │ Dashboard│
-                                            │ (Browser) │ │ (Python) │ │ (ESP32)  │
-                                            └───────────┘ └──────────┘ └──────────┘
-```
 
----
+## Current Data Paths
 
-## Project Structure
+| Path | Address / format | Purpose |
+|---|---|---|
+| ESP32 dashboard | `http://192.168.4.1/` | On-board UI served from LittleFS |
+| ESP32 WebSocket | `ws://192.168.4.1:81/` | Live status broadcast and web commands |
+| ESP32 REST | `http://192.168.4.1/api/*` | Status/config/control endpoints |
+| ESP32 serial | JSON lines at `115200` baud | Python telemetry and commands |
+| Python API | `http://localhost:5000` | Remote API, alerts, dataset status |
+| Dataset output | `ai/logs/edge_impulse_dataset.csv` | Training rows for Edge Impulse |
 
-```
+## Project Layout
+
+```text
 Graduation Project/
-├── firmware/                   # Embedded firmware
-│   ├── MTU/                    # ESP32-S3 — Master Terminal Unit
-│   │   ├── src/                # FreeRTOS tasks, sensors, web server, AI
-│   │   ├── data/               # Built dashboard (LittleFS)
-│   │   ├── lib/edge_impulse/   # Edge Impulse model (after training)
-│   │   └── ARCHITECTURE.md
-│   └── RTU/                    # STM32 Blue Pill — Remote Terminal Unit
-│       └── src/                # Sensor acquisition, CRC8, IWDG
-├── web/                        # Web dashboard source
-│   └── Smart-Water-Station-main/
-│       ├── app/                # React pages (10 routes)
-│       ├── _components/        # Reusable UI components
-│       ├── lib/                # WebSocket hook
-│       └── scripts/            # Build → ESP32 deploy script
-├── ai/                         # AI security module
-│   ├── main.py                 # FastAPI server + AIController
-│   ├── security.py             # YOLO/OpenCV detection engine
-│   ├── config.json             # Runtime configuration
-│   └── requirements.txt
-└── README.md                   # ← You are here
+|-- ai/                              # Python serial/MQTT/FastAPI/dataset controller
+|   |-- api.py
+|   |-- controller.py
+|   |-- main.py
+|   |-- config.json
+|   `-- logs/
+|-- firmware/
+|   |-- MTU/                         # ESP32-S3 PlatformIO project
+|   |   |-- src/                     # FreeRTOS, sensors, web server, AI service
+|   |   |-- data/                    # Built web dashboard for LittleFS
+|   |   |-- lib/edge_impulse/        # Exported Edge Impulse Arduino library
+|   |   `-- platformio.ini
+|   `-- RTU/                         # STM32 Blue Pill PlatformIO project
+|       |-- src/
+|       `-- platformio.ini
+`-- web/
+    `-- Smart-Water-Station-main/    # React/Vite dashboard source
+        |-- app/
+        |-- lib/use-water-station.ts
+        |-- scripts/copy-dist-to-platformio.cjs
+        `-- package.json
 ```
 
----
+## Sensor Schema
 
-## Components
+The active MTU schema is based on before/after-filter sensor pairs:
 
-### 🔧 Firmware — `firmware/`
+| Field | Meaning | Current MTU source |
+|---|---|---|
+| `turb1`, `turb2` | Turbidity before/after filter | ESP32 ADC GPIO 4, 5 |
+| `ph1`, `ph2` | pH before/after filter | ESP32 ADC GPIO 6, 7 |
+| `flow1`, `flow2` | Flow before/after filter | ESP32 GPIO 14, 13 pulse counters |
+| `press1`, `press2` | Pressure before/after filter | ESP32 ADC GPIO 8, 9 |
+| `temp1`, `temp2` | Optional temperature sensors | disabled by default |
+| `pump_current` | Optional pump-current sensor | disabled by default |
+| `pump_on` | Pump state | MTU actuator state |
 
-Two PlatformIO projects communicating over UART:
+Dataset column order:
 
-| Unit | MCU | Role | Key Features |
-|------|-----|------|-------------|
-| **MTU** | ESP32-S3 N16R8 | Edge controller + WiFi AP | FreeRTOS, WebSocket, REST API, Watchdog, Edge Impulse, NVS |
-| **RTU** | STM32F103C8 | Field sensor acquisition | 4× ADC, CRC8 integrity, IWDG watchdog, fault detection |
-
-**Sensors monitored:**
-- 🧪 **TDS** — Total Dissolved Solids (water purity)
-- ⚡ **Pressure** — Pipeline pressure
-- 💧 **Flow Rate** — Water throughput
-- 📏 **Water Level** — Tank level percentage
-
-See [`firmware/MTU/ARCHITECTURE.md`](firmware/MTU/ARCHITECTURE.md) and [`firmware/RTU/README.md`](firmware/RTU/README.md) for details.
-
----
-
-### 🖥️ Web Dashboard — `web/`
-
-A modern single-page application built with **React 19**, **Vite 7**, **TypeScript**, and **Tailwind CSS 4**.
-
-| Feature | Description |
-|---------|-------------|
-| 📊 Live Sensors | Real-time charts for TDS, pressure, flow, and level |
-| 🎮 Control Panel | Pump toggle, Manual/AI mode switch |
-| 🧠 AI Insights | Performance forecast, efficiency donut, alert cards |
-| 🔌 Prototype Demo | Direct ESP32 AP connection with live sensor readout |
-| 🔐 Login | Authentication page |
-| 📋 Reports & Alerts | System reports and alert history |
-| 📱 Responsive | Mobile-friendly layout with sidebar navigation |
-
-**Live connection:**  The `useWaterStation()` hook connects via WebSocket to the ESP32 AP. When no device is connected, it falls back to realistic simulation mode for development.
-
-**Deploy to ESP32:**
-```bash
-cd web/Smart-Water-Station-main
-npm run build:esp32     # Build + copy + gzip → firmware/MTU/data/
-cd ../../firmware/MTU
-pio run -t uploadfs     # Flash LittleFS to ESP32
+```text
+timestamp_ms,turb1,turb2,ph1,ph2,flow1,flow2,press1,press2,temp1,temp2,pump_current,pump_on,state,error,label
 ```
 
-See [`web/Smart-Water-Station-main/README.md`](web/Smart-Water-Station-main/README.md) for setup.
+Required sensors before Python writes a dataset row:
 
----
-
-### 🤖 AI Security Module — `ai/`
-
-A Python application that monitors a camera feed for unauthorized access using **YOLOv8 object detection**. When a person is detected near the water station, it sends an emergency stop command to the ESP32.
-
-| Feature | Description |
-|---------|-------------|
-| 🎯 Object Detection | YOLOv8 person detection (or Haar Cascade fallback) |
-| 🔌 Serial Link | Reads ESP32 telemetry, sends commands |
-| 🌐 FastAPI Server | REST API + WebSocket for remote monitoring |
-| 📝 Rotating Logs | Configurable log levels and file rotation |
-| ⚡ Anti-Flooding | Cooldown timer prevents command spam |
-
-```bash
-cd ai
-pip install -r requirements.txt
-python main.py
+```text
+turb1,turb2,ph1,ph2,flow1,flow2,press1,press2
 ```
 
-See [`ai/README.md`](ai/README.md) for configuration details.
+## MTU Hardware Snapshot
 
----
+| Setting | Current value |
+|---|---|
+| WiFi AP | `AquaPuer-MTU` / `12345678` |
+| Dashboard | enabled, served from LittleFS |
+| Simulation mode | disabled |
+| RTU link | enabled |
+| LCD I2C | SDA GPIO18, SCL GPIO17 |
+| RTU UART | RX GPIO39, TX GPIO40 |
+| Temperature sensors | optional, disabled |
+| Pump-current sensor | optional, disabled |
 
-## Communication Protocol
+RTU wiring:
 
-All communication uses **JSON over Serial** at 115200 baud.
-
-### RTU → MTU (UART with CRC8)
-```json
-{"type":"rtu_frame","seq":42,"tds":250.00,"pressure":45.00,"flow":0.00,"level":75.00,"err":0,"ts":8400,"crc":123}
+```text
+STM32 PA9  TX  -> ESP32 GPIO39 RX
+STM32 PA10 RX  <- ESP32 GPIO40 TX
+GND            -> GND
 ```
 
-### MTU → Web Dashboard (WebSocket port 81)
-```json
-{"device":"Smart Water Station","firmware":"3.1.0","state":"IDLE","sensors":{"tds":{"value":250,"valid":true},"pressure":{"value":45,"valid":true}}}
-```
-
-### Web/AI → MTU (Commands)
-```json
-{"cmd":"SET_PUMP","state":"ON"}
-{"cmd":"EMERGENCY_STOP","state":"ON"}
-{"cmd":"RESET"}
-{"cmd":"CALIBRATE_TDS","value":500}
-```
-
----
-
-## Safety Mechanisms
-
-1. **Edge Safety** — ESP32 checks sensor thresholds locally every 200ms, independent of any client
-2. **CRC8 Integrity** — Every RTU frame is CRC-verified; corrupted data is silently dropped
-3. **Watchdog Timers** — Both ESP32 (10s) and STM32 (4s) auto-reset if any task hangs
-4. **Sensor Fault Detection** — RTU detects disconnected/shorted sensors (ADC near 0 or 4095)
-5. **State Machine Locking** — Emergency stop requires explicit reset command
-6. **Anti-Flooding** — AI module tracks state changes with cooldown to prevent serial spam
-7. **NVS Persistence** — Calibration data survives power cycles
-
----
+Use 3.3V UART logic only.
 
 ## Quick Start
 
-### 1. Flash Firmware
-
-```bash
-# MTU (ESP32-S3)
-cd firmware/MTU
-pio run -e esp32s3_n16r8 -t upload
-
-# RTU (STM32)
-cd firmware/RTU
-pio run -e bluepill_f103c8 -t upload
-```
-
-### 2. Deploy Dashboard
+### 1. Build and Deploy the Web Dashboard
 
 ```bash
 cd web/Smart-Water-Station-main
 npm install
 npm run build:esp32
-
-cd ../../firmware/MTU
-pio run -e esp32s3_n16r8 -t uploadfs
 ```
 
-### 3. Connect
+This builds the Vite app, copies it into `firmware/MTU/data`, and creates gzip
+copies for the ESP32 server.
 
-1. Connect to WiFi: **AquaPuer-MTU** (password: `12345678`)
-2. Open: **http://192.168.4.1**
+### 2. Flash the ESP32 MTU
 
-### 4. Start AI Module (Optional)
+```bash
+cd ../../firmware/MTU
+pio run -e esp32s3_n16r8 -t uploadfs
+pio run -e esp32s3_n16r8 -t upload
+```
+
+`uploadfs` is required. If only firmware is uploaded, the ESP32 can boot while
+the browser still shows an old page or a blank page.
+
+### 3. Open the Station UI
+
+```text
+WiFi: AquaPuer-MTU
+Password: 12345678
+Dashboard: http://192.168.4.1/
+```
+
+### 4. Run the Python Controller
 
 ```bash
 cd ai
@@ -213,24 +209,64 @@ pip install -r requirements.txt
 python main.py
 ```
 
----
+## API Summary
 
-## Tech Stack
+### ESP32 MTU
 
-| Layer | Technology |
-|-------|-----------|
-| MCU (Master) | ESP32-S3 N16R8, Arduino + FreeRTOS, PlatformIO |
-| MCU (Remote) | STM32F103C8 (Blue Pill), Arduino, PlatformIO |
-| Communication | JSON over UART (CRC8), WebSocket, REST API |
-| Frontend | React 19, Vite 7, TypeScript, Tailwind CSS 4, Radix UI, shadcn/ui |
-| AI/Security | Python 3.10+, YOLOv8 (Ultralytics), FastAPI, OpenCV |
-| Edge AI | Edge Impulse (data collection + inference) |
-| Storage | LittleFS (dashboard), NVS (calibration), Rotating logs |
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/status` | Full station status |
+| `POST` | `/api/control` | Pump/valve/reset/emergency commands |
+| `GET` | `/api/config` | Firmware flags and thresholds |
+| `GET` | `/api/ai` | Latest AI/Edge Impulse result |
+| `GET` | `/health` | Filesystem and firmware health |
+| `WS` | `:81/` | Live status and command channel |
 
----
+### Python Controller
 
-## Team
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/status` | Serial/MQTT/security/dataset status |
+| `POST` | `/api/command` | Send command to MTU |
+| `GET` | `/api/telemetry` | Latest serial telemetry |
+| `GET` | `/api/dataset/status` | Dataset readiness and missing sensors |
+| `POST` | `/api/dataset/label` | Set label for future dataset rows |
+| `WS` | `/ws/live` | Python-side live stream |
 
-AquaPuer — Graduation Project 2026
+## Command Format
 
----
+```json
+{"cmd":"SET_PUMP","state":true}
+{"cmd":"SET_MODE","state":true}
+{"cmd":"EMERGENCY_STOP","state":"ON"}
+{"cmd":"RESET"}
+```
+
+## Verification
+
+```bash
+python -m compileall ai
+
+cd web/Smart-Water-Station-main
+npm run build
+npm run build:esp32
+
+cd ../../firmware/MTU
+pio run -e esp32s3_n16r8
+pio run -e esp32s3_n16r8 -t buildfs
+
+cd ../RTU
+pio run -e bluepill_f103c8
+```
+
+If `pio` is not available in the terminal but the VS Code PlatformIO extension
+is installed, use the PlatformIO task buttons or the full PlatformIO virtualenv
+path on the machine.
+
+## Status Notes
+
+- The web dashboard and MTU command format are aligned on WebSocket port `81`.
+- The Python dataset logger and firmware Edge Impulse feature vector now share
+  the same feature order.
+- The STM32 RTU project still needs a payload upgrade before it fully matches
+  the new before/after-filter schema.

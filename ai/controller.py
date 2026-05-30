@@ -2,9 +2,12 @@
 
 import time
 import json
+import csv
+import os
 import threading
 import asyncio
 import logging
+from pathlib import Path
 from typing import Optional, List
 
 from fastapi import WebSocket
@@ -14,6 +17,39 @@ from serial_link import SerialLink
 from mqtt_link import MQTTLink
 
 logger = logging.getLogger("water_station.controller")
+
+AI_DIR = Path(__file__).resolve().parent
+DATASET_SENSORS = [
+    "turb1",
+    "turb2",
+    "ph1",
+    "ph2",
+    "flow1",
+    "flow2",
+    "press1",
+    "press2",
+    "temp1",
+    "temp2",
+    "pump_current",
+]
+REQUIRED_DATASET_SENSORS = [
+    "turb1",
+    "turb2",
+    "ph1",
+    "ph2",
+    "flow1",
+    "flow2",
+    "press1",
+    "press2",
+]
+DATASET_COLUMNS = [
+    "timestamp_ms",
+    *DATASET_SENSORS,
+    "pump_on",
+    "state",
+    "error",
+    "label",
+]
 
 
 class AIController:
@@ -37,10 +73,70 @@ class AIController:
         self.last_command_time = 0.0
         self.latest_telemetry: dict = {}
         self.latest_state: dict = {"state": "UNKNOWN", "error": "NONE"}
+        self._telemetry_lock = threading.Lock()
+
+        # Edge Impulse dataset capture
+        dc = config.get("dataset", {})
+        self.dataset_enabled = dc.get("enabled", True)
+        self.dataset_label = dc.get("label", "unlabeled")
+        self.dataset_interval = float(dc.get("interval_seconds", 1.0))
+        self.dataset_required_sensors = dc.get(
+            "required_sensors", REQUIRED_DATASET_SENSORS
+        )
+        self.dataset_path = self._resolve_dataset_path(
+            dc.get("file", "logs/edge_impulse_dataset.csv")
+        )
+        self.dataset_rows_written = self._count_dataset_rows()
+        self._last_dataset_write = 0.0
 
         # WebSocket
         self.ws_clients: List[WebSocket] = []
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def _resolve_dataset_path(self, configured_path: str) -> Path:
+        path = Path(configured_path)
+        if not path.is_absolute():
+            path = AI_DIR / path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _count_dataset_rows(self) -> int:
+        if not self.dataset_path.exists():
+            return 0
+        try:
+            with self.dataset_path.open("r", newline="", encoding="utf-8") as f:
+                return max(sum(1 for _ in f) - 1, 0)
+        except OSError:
+            return 0
+
+    def set_dataset_label(self, label: str) -> str:
+        cleaned = label.strip().replace(" ", "_")
+        self.dataset_label = cleaned or "unlabeled"
+        return self.dataset_label
+
+    def get_dataset_status(self) -> dict:
+        with self._telemetry_lock:
+            present = [
+                name
+                for name in DATASET_SENSORS
+                if isinstance(self.latest_telemetry.get(name, {}).get("value"), (int, float))
+            ]
+            missing_required = [
+                name for name in self.dataset_required_sensors if name not in present
+            ]
+
+        return {
+            "enabled": self.dataset_enabled,
+            "file": str(self.dataset_path),
+            "rows": self.dataset_rows_written,
+            "label": self.dataset_label,
+            "interval_seconds": self.dataset_interval,
+            "sensors": DATASET_SENSORS,
+            "required_sensors": self.dataset_required_sensors,
+            "present_sensors": present,
+            "missing_required_sensors": missing_required,
+            "ready": len(missing_required) == 0,
+        }
 
     # ── MQTT command callback (called from MQTT thread) ──────────────────────
 
@@ -136,14 +232,63 @@ class AIController:
             t = msg.get("type", "")
             if t == "telemetry":
                 s = msg.get("sensor", "unknown")
-                self.latest_telemetry[s] = msg
+                with self._telemetry_lock:
+                    self.latest_telemetry[s] = msg
                 self.broadcast_telemetry(msg)
+                self._maybe_write_dataset_row()
+
             elif t == "state":
-                self.latest_state = msg
+                with self._telemetry_lock:
+                    self.latest_state = msg
                 self.mqtt.publish("state", msg)
                 self._ws_broadcast({"type": "state_update", "data": msg})
         except json.JSONDecodeError:
             pass
+
+    def _dataset_value(self, sensor_name: str):
+        telemetry = self.latest_telemetry.get(sensor_name, {})
+        value = telemetry.get("value")
+        if isinstance(value, (int, float)):
+            return value
+        return ""
+
+    def _maybe_write_dataset_row(self):
+        if not self.dataset_enabled:
+            return
+
+        now = time.time()
+        if now - self._last_dataset_write < self.dataset_interval:
+            return
+
+        with self._telemetry_lock:
+            missing = [
+                name for name in self.dataset_required_sensors
+                if not isinstance(self.latest_telemetry.get(name, {}).get("value"), (int, float))
+            ]
+            if missing:
+                return
+
+            row = {
+                "timestamp_ms": int(now * 1000),
+                "pump_on": self._dataset_value("pump_on"),
+                "state": self.latest_state.get("state", "UNKNOWN"),
+                "error": self.latest_state.get("error", "NONE"),
+                "label": self.dataset_label,
+            }
+            for sensor_name in DATASET_SENSORS:
+                row[sensor_name] = self._dataset_value(sensor_name)
+
+        try:
+            file_exists = self.dataset_path.exists()
+            with self.dataset_path.open("a", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=DATASET_COLUMNS)
+                if not file_exists or os.path.getsize(self.dataset_path) == 0:
+                    writer.writeheader()
+                writer.writerow(row)
+            self.dataset_rows_written += 1
+            self._last_dataset_write = now
+        except OSError as e:
+            logger.error(f"Error saving dataset row: {e}")
 
     def status_loop(self):
         while self.running:
@@ -157,6 +302,7 @@ class AIController:
             "connected": self.serial.connected,
             "state": self.latest_state,
             "telemetry": self.latest_telemetry,
+            "dataset": self.get_dataset_status(),
             "security": self.monitor.get_stats(),
             "active_alerts": self.monitor.get_active_alerts(),
             "recommendations": self.monitor.get_recommendations(),

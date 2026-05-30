@@ -295,19 +295,13 @@ void applyControlCommand(const ControlCommand &command)
     break;
 
   case ACTION_CALIBRATE_TDS:
-    if (currentState == STATE_IDLE || currentState == STATE_CALIBRATING)
-    {
-      setState(STATE_CALIBRATING);
-      sensors.calibrateTDS(command.value);
-      setState(STATE_IDLE);
-    }
-    break;
-
   case ACTION_CALIBRATE_PRESSURE:
+    // Calibration now done via NVS — use setCalibration() + saveCalibrationToNVS()
     if (currentState == STATE_IDLE || currentState == STATE_CALIBRATING)
     {
       setState(STATE_CALIBRATING);
-      sensors.calibratePressure(command.value);
+      // TODO: add specific calibration command handling
+      sensors.saveCalibrationToNVS();
       setState(STATE_IDLE);
     }
     break;
@@ -352,12 +346,31 @@ void performSafetyCheck(const SensorSnapshot &sensorData)
 void updateTelemetrySnapshot(const SensorSnapshot &sensorData)
 {
   TelemetrySnapshot snapshot = getSnapshotCopy();
+  bool useRtuSnapshot = false;
 
-  // Use the already-captured sensor readings — no double read!
-  snapshot.tds = sensorData.tds;
-  snapshot.pressure = sensorData.pressure;
-  snapshot.flow = sensorData.flow;
-  snapshot.level = sensorData.level;
+#if ENABLE_RTU_LINK
+  useRtuSnapshot = (millis() - lastRtuFrameTime) < RTU_TIMEOUT_MS;
+#endif
+
+  if (!useRtuSnapshot)
+  {
+    snapshot.turb1 = sensorData.turb1;
+    snapshot.turb2 = sensorData.turb2;
+    snapshot.ph1 = sensorData.ph1;
+    snapshot.ph2 = sensorData.ph2;
+    snapshot.flow1 = sensorData.flow1;
+    snapshot.flow2 = sensorData.flow2;
+    snapshot.pressure1 = sensorData.pressure1;
+    snapshot.pressure2 = sensorData.pressure2;
+    snapshot.temp1 = sensorData.temp1;
+    snapshot.temp2 = sensorData.temp2;
+    snapshot.pumpCurrent = sensorData.pumpCurrent;
+  }
+
+  snapshot.temp1 = sensorData.temp1;
+  snapshot.temp2 = sensorData.temp2;
+  snapshot.pumpCurrent = sensorData.pumpCurrent;
+
   snapshot.state = currentState;
   snapshot.error = lastError;
   snapshot.pumpRunning = pumpRunning;
@@ -366,7 +379,7 @@ void updateTelemetrySnapshot(const SensorSnapshot &sensorData)
   snapshot.uptime = millis();
 
 #if ENABLE_RTU_LINK
-  snapshot.rtuOnline = (millis() - lastRtuFrameTime) < RTU_TIMEOUT_MS;
+  snapshot.rtuOnline = useRtuSnapshot;
 #else
   snapshot.rtuOnline = false;
 #endif
@@ -386,14 +399,29 @@ void sendTelemetrySnapshot(const TelemetrySnapshot &snapshot)
     return;
   }
 
-  comms.sendTelemetry("tds", snapshot.tds.value,
-                      snapshot.tds.isValid ? "OK" : "ERROR");
-  comms.sendTelemetry("pressure", snapshot.pressure.value,
-                      snapshot.pressure.isValid ? "OK" : "ERROR");
-  comms.sendTelemetry("flow", snapshot.flow.value,
-                      snapshot.flow.isValid ? "OK" : "ERROR");
-  comms.sendTelemetry("level", snapshot.level.value,
-                      snapshot.level.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("turb1", snapshot.turb1.value,
+                      snapshot.turb1.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("turb2", snapshot.turb2.value,
+                      snapshot.turb2.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("ph1", snapshot.ph1.value,
+                      snapshot.ph1.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("ph2", snapshot.ph2.value,
+                      snapshot.ph2.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("flow1", snapshot.flow1.value,
+                      snapshot.flow1.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("flow2", snapshot.flow2.value,
+                      snapshot.flow2.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("press1", snapshot.pressure1.value,
+                      snapshot.pressure1.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("press2", snapshot.pressure2.value,
+                      snapshot.pressure2.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("temp1", snapshot.temp1.value,
+                      snapshot.temp1.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("temp2", snapshot.temp2.value,
+                      snapshot.temp2.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("pump_current", snapshot.pumpCurrent.value,
+                      snapshot.pumpCurrent.isValid ? "OK" : "ERROR");
+  comms.sendTelemetry("pump_on", snapshot.pumpRunning ? 1.0f : 0.0f, "OK");
   comms.sendState(snapshot.state, snapshot.error);
 
   xSemaphoreGive(serialMutex);
@@ -695,67 +723,27 @@ void parseRtuFrame(const char *json, uint16_t len)
   // ── Update snapshot with RTU sensor values ──
   TelemetrySnapshot snapshot = getSnapshotCopy();
 
-  // TDS — skip if RTU reports sensor fault
-  float tdsVal = doc["tds"] | RTU_SENSOR_FAULT_VALUE;
-  if (tdsVal > RTU_SENSOR_FAULT_VALUE && !(errFlags & 0x01))
-  {
-    snapshot.tds.value = tdsVal;
-    snapshot.tds.isValid = (tdsVal >= MIN_TDS && tdsVal <= MAX_TDS);
-    snapshot.tds.errorCode = snapshot.tds.isValid ? ERR_NONE
-                             : (tdsVal > MAX_TDS ? ERR_TDS_HIGH : ERR_TDS_LOW);
-  }
-  else
-  {
-    snapshot.tds.isValid = false;
-    snapshot.tds.errorCode = ERR_SENSOR_FAILURE;
-  }
-  snapshot.tds.timestamp = millis();
+  // Helper lambda for RTU sensor parsing
+  auto parseRtuSensor = [&](const char* key, SensorReading &out, uint8_t errBit, float minVal, float maxVal) {
+    float val = doc[key] | RTU_SENSOR_FAULT_VALUE;
+    if (val > RTU_SENSOR_FAULT_VALUE && !(errFlags & errBit)) {
+      out.value = val;
+      out.isValid = (val >= minVal && val <= maxVal);
+      out.errorCode = out.isValid ? ERR_NONE : ERR_SENSOR_FAILURE;
+    } else {
+      out.isValid = false;
+      out.errorCode = ERR_SENSOR_FAILURE;
+    }
+    out.timestamp = millis();
+  };
 
-  // Pressure
-  float presVal = doc["pressure"] | RTU_SENSOR_FAULT_VALUE;
-  if (presVal > RTU_SENSOR_FAULT_VALUE && !(errFlags & 0x02))
-  {
-    snapshot.pressure.value = presVal;
-    snapshot.pressure.isValid = (presVal >= MIN_PRESSURE && presVal <= MAX_PRESSURE);
-    snapshot.pressure.errorCode = snapshot.pressure.isValid ? ERR_NONE
-                                  : (presVal > MAX_PRESSURE ? ERR_PRESSURE_HIGH : ERR_PRESSURE_LOW);
-  }
-  else
-  {
-    snapshot.pressure.isValid = false;
-    snapshot.pressure.errorCode = ERR_SENSOR_FAILURE;
-  }
-  snapshot.pressure.timestamp = millis();
-
-  // Flow
-  float flowVal = doc["flow"] | RTU_SENSOR_FAULT_VALUE;
-  if (flowVal > RTU_SENSOR_FAULT_VALUE && !(errFlags & 0x04))
-  {
-    snapshot.flow.value = flowVal;
-    snapshot.flow.isValid = (flowVal <= MAX_FLOW_RATE);
-    snapshot.flow.errorCode = snapshot.flow.isValid ? ERR_NONE : ERR_SENSOR_FAILURE;
-  }
-  else
-  {
-    snapshot.flow.isValid = false;
-    snapshot.flow.errorCode = ERR_SENSOR_FAILURE;
-  }
-  snapshot.flow.timestamp = millis();
-
-  // Level
-  float levelVal = doc["level"] | RTU_SENSOR_FAULT_VALUE;
-  if (levelVal > RTU_SENSOR_FAULT_VALUE && !(errFlags & 0x08))
-  {
-    snapshot.level.value = levelVal;
-    snapshot.level.isValid = (levelVal >= MIN_WATER_LEVEL);
-    snapshot.level.errorCode = snapshot.level.isValid ? ERR_NONE : ERR_WATER_LEVEL_LOW;
-  }
-  else
-  {
-    snapshot.level.isValid = false;
-    snapshot.level.errorCode = ERR_SENSOR_FAILURE;
-  }
-  snapshot.level.timestamp = millis();
+  parseRtuSensor("tds",      snapshot.turb1,     0x01, 0, MAX_TURBIDITY);
+  parseRtuSensor("tds",      snapshot.turb2,     0x01, 0, MAX_TURBIDITY);
+  parseRtuSensor("flow",     snapshot.flow1,     0x04, 0, MAX_FLOW_RATE);
+  parseRtuSensor("flow",     snapshot.flow2,     0x04, 0, MAX_FLOW_RATE);
+  parseRtuSensor("pressure", snapshot.pressure1, 0x02, 0, MAX_PRESSURE);
+  parseRtuSensor("pressure", snapshot.pressure2, 0x02, 0, MAX_PRESSURE);
+  parseRtuSensor("level",    snapshot.ph1,       0x08, 0, 100);
 
   snapshot.rtuOnline = true;
   lastRtuFrameTime = millis();
@@ -824,10 +812,12 @@ void dataForwarderTask(void *parameter)
         xSemaphoreTake(serialMutex, pdMS_TO_TICKS(50)) == pdTRUE)
     {
       comms.sendDataForwarderLine(
-          snapshot.tds.value,
-          snapshot.pressure.value,
-          snapshot.flow.value,
-          snapshot.level.value);
+          snapshot.turb1.value, snapshot.turb2.value,
+          snapshot.ph1.value, snapshot.ph2.value,
+          snapshot.flow1.value, snapshot.flow2.value,
+          snapshot.pressure1.value, snapshot.pressure2.value,
+          snapshot.temp1.value, snapshot.temp2.value,
+          snapshot.pumpCurrent.value);
       xSemaphoreGive(serialMutex);
     }
 

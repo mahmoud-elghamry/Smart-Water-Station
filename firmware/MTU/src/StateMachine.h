@@ -39,11 +39,10 @@ inline const char *stateToString(SystemState state)
   }
 }
 
-// Error codes for detailed error reporting
 enum ErrorCode
 {
   ERR_NONE = 0,
-  ERR_TDS_HIGH = 1,
+  ERR_TDS_HIGH = 1,        // kept for backwards compat (used as turbidity high)
   ERR_TDS_LOW = 2,
   ERR_PRESSURE_HIGH = 3,
   ERR_PRESSURE_LOW = 4,
@@ -51,7 +50,10 @@ enum ErrorCode
   ERR_SENSOR_FAILURE = 6,
   ERR_COMMUNICATION = 7,
   ERR_PUMP_FAILURE = 8,
-  ERR_COMM_TIMEOUT = 9
+  ERR_COMM_TIMEOUT = 9,
+  ERR_PH_OUT_OF_RANGE = 10,
+  ERR_TEMP_HIGH = 11,
+  ERR_TEMP_LOW = 12
 };
 
 inline const char *errorToString(ErrorCode err)
@@ -61,9 +63,9 @@ inline const char *errorToString(ErrorCode err)
   case ERR_NONE:
     return "OK";
   case ERR_TDS_HIGH:
-    return "TDS_HIGH";
+    return "TURBIDITY_HIGH";
   case ERR_TDS_LOW:
-    return "TDS_LOW";
+    return "TURBIDITY_LOW";
   case ERR_PRESSURE_HIGH:
     return "PRESSURE_HIGH";
   case ERR_PRESSURE_LOW:
@@ -78,6 +80,12 @@ inline const char *errorToString(ErrorCode err)
     return "PUMP_FAILURE";
   case ERR_COMM_TIMEOUT:
     return "COMM_TIMEOUT";
+  case ERR_PH_OUT_OF_RANGE:
+    return "PH_OUT_OF_RANGE";
+  case ERR_TEMP_HIGH:
+    return "TEMP_HIGH";
+  case ERR_TEMP_LOW:
+    return "TEMP_LOW";
   default:
     return "UNKNOWN_ERROR";
   }

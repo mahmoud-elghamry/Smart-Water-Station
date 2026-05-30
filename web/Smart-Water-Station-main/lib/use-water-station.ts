@@ -14,6 +14,18 @@ export type StationState = {
   updatedAt: number;
 };
 
+type FirmwareStatus = {
+  ok?: boolean;
+  state?: string;
+  actuators?: {
+    pump?: boolean;
+  };
+  sensors?: Record<string, { value?: number; valid?: boolean }>;
+  rtu?: {
+    online?: boolean;
+  };
+};
+
 const initialState: StationState = {
   connected: false,
   pumpOn: false,
@@ -28,7 +40,53 @@ const initialState: StationState = {
 
 function wsUrl() {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}/ws`;
+  const hostname = window.location.hostname;
+  return `${protocol}//${hostname}:81/`;
+}
+
+function sensorValue(payload: FirmwareStatus, ...keys: string[]) {
+  for (const key of keys) {
+    const value = payload.sensors?.[key]?.value;
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function normalizeStatus(payload: Partial<StationState> & FirmwareStatus, previous: StationState): StationState {
+  if (payload.ok !== undefined && !payload.sensors && !payload.actuators) {
+    return previous;
+  }
+
+  const tds = typeof payload.tds === "number"
+    ? payload.tds
+    : sensorValue(payload, "tds", "turb1", "turb2");
+  const pressure = typeof payload.pressure === "number"
+    ? payload.pressure
+    : sensorValue(payload, "pressure", "press1", "press2");
+  const flowRate = typeof payload.flowRate === "number"
+    ? payload.flowRate
+    : sensorValue(payload, "flow", "flow1", "flow2");
+  const level = typeof payload.level === "number"
+    ? payload.level
+    : sensorValue(payload, "level", "ph1");
+  const temperature = typeof payload.temperature === "number"
+    ? payload.temperature
+    : sensorValue(payload, "temp1", "temp2");
+
+  return {
+    ...previous,
+    pumpOn: payload.actuators?.pump ?? payload.pumpOn ?? previous.pumpOn,
+    mode: payload.mode ?? previous.mode,
+    tds: tds ?? previous.tds,
+    pressure: pressure ?? previous.pressure,
+    flowRate: flowRate ?? previous.flowRate,
+    level: level ?? previous.level,
+    temperature: temperature ?? previous.temperature,
+    connected: true,
+    updatedAt: Date.now(),
+  };
 }
 
 function simulatedState(previous: StationState): StationState {
@@ -80,13 +138,8 @@ export function useWaterStation() {
 
         socket.onmessage = (event) => {
           lastMessageAtRef.current = Date.now();
-          const payload = JSON.parse(event.data) as Partial<StationState>;
-          setState((previous) => ({
-            ...previous,
-            ...payload,
-            connected: true,
-            updatedAt: Date.now(),
-          }));
+          const payload = JSON.parse(event.data) as Partial<StationState> & FirmwareStatus;
+          setState((previous) => normalizeStatus(payload, previous));
         };
 
         socket.onclose = () => {
@@ -129,7 +182,12 @@ export function useWaterStation() {
 
     const socket = socketRef.current;
     if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: "control", ...patch }));
+      if (patch.pumpOn !== undefined) {
+        socket.send(JSON.stringify({ cmd: "SET_PUMP", state: patch.pumpOn }));
+      }
+      if (patch.mode !== undefined) {
+        socket.send(JSON.stringify({ cmd: "SET_MODE", state: patch.mode === "manual" }));
+      }
     }
   }, []);
 

@@ -1,104 +1,148 @@
-# Edge Impulse Model
+# Edge Impulse Model Integration
 
-Place the exported Arduino library contents here after training.
+![Edge Impulse](https://img.shields.io/badge/Edge%20Impulse-Model-00AEEF?style=flat-square)
+![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Inference-blue?style=flat-square&logo=espressif)
+![Dataset](https://img.shields.io/badge/Dataset-11%20features-green?style=flat-square)
 
-This folder is the integration point between Edge Impulse Studio and the
-Smart Water Station firmware.
+Place the exported Edge Impulse Arduino library in this folder after training.
 
-## Complete Workflow
+The firmware integration point is `firmware/MTU/src/AiService.cpp`. Edge
+Impulse is disabled by default:
 
-### Step 1: Collect Training Data
+```cpp
+#define ENABLE_EDGE_IMPULSE 0
+```
 
-1. Open `src/Config.h` and set:
+## Current Feature Vector
+
+The MTU feature vector is now 11 values:
+
+| Index | Feature | Unit/status |
+|---:|---|---|
+| 0 | `turb1` | turbidity before filter, percent |
+| 1 | `turb2` | turbidity after filter, percent |
+| 2 | `ph1` | pH before filter |
+| 3 | `ph2` | pH after filter |
+| 4 | `flow1` | flow before filter, L/min |
+| 5 | `flow2` | flow after filter, L/min |
+| 6 | `press1` | pressure before filter, bar |
+| 7 | `press2` | pressure after filter, bar |
+| 8 | `temp1` | optional temperature before filter |
+| 9 | `temp2` | optional temperature after filter |
+| 10 | `pump_current` | optional pump current, amps |
+
+`EI_FEATURES_COUNT` must stay in sync with this list.
+
+## Training Flow
+
+![Edge Impulse training flow](../../../../docs/assets/edge-impulse-flow.svg)
+
+```mermaid
+flowchart LR
+    Sensors["MTU telemetry<br/>11-feature order"] --> Capture{"Capture path"}
+    Capture --> Python["Python dataset logger<br/>labels + state"]
+    Capture --> Forwarder["Edge Impulse data forwarder<br/>clean serial CSV"]
+    Python --> CSV["edge_impulse_dataset.csv"]
+    Forwarder --> Studio["Edge Impulse Studio"]
+    CSV --> Studio
+    Studio --> Export["Arduino library export"]
+    Export --> Firmware["lib/edge_impulse/<br/>AiService.cpp"]
+```
+
+For Python-side CSV collection, the dataset file includes extra context fields:
+
+```text
+timestamp_ms,...features...,pump_on,state,error,label
+```
+
+## Data Collection Options
+
+### Option A: Python Dataset Logger
+
+This is the current recommended path because it preserves labels and station
+state in `ai/logs/edge_impulse_dataset.csv`.
+
+1. Upload normal MTU firmware with serial telemetry enabled.
+2. Run the Python controller:
+
+   ```bash
+   cd ai
+   python main.py
+   ```
+
+3. Set a label:
+
+   ```bash
+   curl -X POST http://localhost:5000/api/dataset/label ^
+     -H "Content-Type: application/json" ^
+     -d "{\"label\":\"normal\"}"
+   ```
+
+4. Collect CSV rows from `ai/logs/edge_impulse_dataset.csv`.
+
+### Option B: Edge Impulse Data Forwarder
+
+This sends clean CSV lines directly over ESP32 serial.
+
+1. In `firmware/MTU/src/Config.h`:
+
    ```cpp
    #define ENABLE_DATA_FORWARDER 1
    #define ENABLE_EDGE_IMPULSE   0
    ```
 
-2. Build and upload the firmware:
+2. Build and upload:
+
    ```bash
+   cd firmware/MTU
    pio run -e esp32s3_n16r8 -t upload
    ```
 
-3. On your PC, install the Edge Impulse CLI (if not already):
-   ```bash
-   npm install -g edge-impulse-cli
-   ```
+3. Run:
 
-4. Run the data forwarder:
    ```bash
    edge-impulse-data-forwarder --frequency 20
    ```
-   - It will auto-detect the serial port and baud rate.
-   - When prompted, name the axes: `tds, pressure, flow, level`
-   - Name the device: `AquaPuer-MTU`
 
-5. Collect samples for each class (e.g., `normal`, `pump_fault`, `high_tds`, etc.)
-   in Edge Impulse Studio.
+4. Use these axis names:
 
-### Step 2: Train the Model
+   ```text
+   turb1,turb2,ph1,ph2,flow1,flow2,press1,press2,temp1,temp2,pump_current
+   ```
 
-1. Go to [Edge Impulse Studio](https://studio.edgeimpulse.com)
-2. Design your impulse (suggested):
-   - **Input block**: Time series data (4 axes, window size ~2s at 20Hz = 40 samples)
-   - **Processing block**: Flatten or Spectral Analysis
-   - **Learning block**: Classification (Neural Network or K-NN)
-3. Train and evaluate the model.
+Data forwarder mode disables normal JSON serial telemetry while it is enabled.
 
-### Step 3: Export the Model
+## Export and Enable Inference
 
-1. Go to **Deployment** tab in Edge Impulse Studio.
-2. Select **Arduino library**.
-3. Click **Build** → download the `.zip` file.
-4. Extract the ZIP contents into **this folder** (`lib/edge_impulse/`).
+1. Train in Edge Impulse Studio with the same feature count/order.
+2. Export as an Arduino library.
+3. Extract the library contents into this folder.
+4. In `Config.h`:
 
-The folder should look like:
-```
-lib/edge_impulse/
-├── src/
-│   ├── edge-impulse-sdk/
-│   ├── model-parameters/
-│   └── tflite-model/
-├── library.properties
-└── README.md (from Edge Impulse)
-```
-
-### Step 4: Enable Inference
-
-1. Open `src/Config.h` and set:
    ```cpp
    #define ENABLE_DATA_FORWARDER 0
    #define ENABLE_EDGE_IMPULSE   1
    ```
 
-2. Open `src/AiService.cpp` and:
-   - Uncomment the `#include <your_project_inference.h>` line.
-   - Change `your_project` to match the actual project name from Edge Impulse.
-   - Uncomment the inference code block inside `AiService::run()`.
+5. Update `AiService.cpp` to include the generated inference header and call
+   the generated classifier in `AiService::run()`.
+6. Build and upload:
 
-3. Build and upload:
    ```bash
    pio run -e esp32s3_n16r8 -t upload
    ```
 
-4. The AI results will appear in:
-   - Serial telemetry JSON
-   - `GET /api/ai` REST endpoint
-   - WebSocket broadcast on port 81
-   - Dashboard UI
+AI results are available in:
 
-## Sensor Mapping
-
-| Feature Index | Sensor | Unit | Range |
-|---------------|--------|------|-------|
-| 0 | TDS | PPM | 50–500 |
-| 1 | Pressure | PSI | 5–100 |
-| 2 | Flow Rate | L/min | 0–50 |
-| 3 | Water Level | % | 10–100 |
+- serial telemetry/state flow
+- `GET /api/ai`
+- WebSocket status on port 81
+- dashboard UI
 
 ## Notes
 
-- Data forwarder mode and Edge Impulse inference are **mutually exclusive**.
-  Do not enable both at the same time.
-- The ESP32-S3 with 8MB PSRAM can handle most Edge Impulse models comfortably.
-- If the model is too large, consider quantizing to INT8 in Edge Impulse Studio.
+- Do not enable `ENABLE_DATA_FORWARDER` and `ENABLE_EDGE_IMPULSE` together.
+- Optional temperature/current sensors can be trained later, but the model input
+  order must still match firmware and dataset order.
+- Pump-current overload detection is represented by `pump_current` and the
+  `MAX_PUMP_CURRENT` threshold in firmware.

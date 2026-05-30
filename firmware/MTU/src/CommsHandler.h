@@ -49,8 +49,10 @@ public:
   void sendInfo();
   void sendError(const char *msg);
 
-  // Edge Impulse data forwarder (CSV line: tds,pressure,flow,level)
-  void sendDataForwarderLine(float tds, float pressure, float flow, float level);
+  // Edge Impulse data forwarder (CSV: turb1,turb2,ph1,ph2,flow1,flow2,press1,press2,temp1,temp2,pump_current)
+  void sendDataForwarderLine(float t1, float t2, float ph1, float ph2,
+                             float f1, float f2, float p1, float p2,
+                             float temp1, float temp2, float pumpCurrent);
 
 private:
   char _inputBuffer[BUFFER_SIZE]; // Fixed-size buffer instead of String

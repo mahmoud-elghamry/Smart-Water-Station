@@ -5,8 +5,7 @@
 #include "StateMachine.h"
 #include <Arduino.h>
 
-enum ControlAction
-{
+enum ControlAction {
   ACTION_NONE = 0,
   ACTION_SET_PUMP,
   ACTION_SET_VALVE,
@@ -17,16 +16,14 @@ enum ControlAction
   ACTION_SET_MAINTENANCE
 };
 
-enum CommandSource
-{
+enum CommandSource {
   SOURCE_LOCAL = 0,
   SOURCE_SERIAL,
   SOURCE_WEB,
   SOURCE_AI
 };
 
-struct ControlCommand
-{
+struct ControlCommand {
   ControlAction action = ACTION_NONE;
   CommandSource source = SOURCE_LOCAL;
   bool state = false;
@@ -34,8 +31,7 @@ struct ControlCommand
   unsigned long timestamp = 0;
 };
 
-struct AiResult
-{
+struct AiResult {
   bool available = false;
   bool fault = false;
   float confidence = 0.0f;
@@ -43,12 +39,22 @@ struct AiResult
   unsigned long timestamp = 0;
 };
 
-struct TelemetrySnapshot
-{
-  SensorReading tds;
-  SensorReading pressure;
-  SensorReading flow;
-  SensorReading level;
+struct TelemetrySnapshot {
+  // 8 sensors (before/after filter)
+  SensorReading turb1;
+  SensorReading turb2;
+  SensorReading ph1;
+  SensorReading ph2;
+  SensorReading flow1;
+  SensorReading flow2;
+  SensorReading pressure1;
+  SensorReading pressure2;
+
+  SensorReading temp1;
+  SensorReading temp2;
+  SensorReading pumpCurrent;
+
+  // System
   AiResult ai;
   SystemState state = STATE_IDLE;
   ErrorCode error = ERR_NONE;

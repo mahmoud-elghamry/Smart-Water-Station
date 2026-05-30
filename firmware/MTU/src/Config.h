@@ -9,17 +9,18 @@
 #define TELEMETRY_INTERVAL 1000 // 1 second
 
 // ============== Feature Flags ==============
-// Keep the graduation-project build useful without pulling in heavy pieces too early.
 #define TARGET_ESP32S3_N16R8 1
 #define ENABLE_WEB_DASHBOARD 1
 #define ENABLE_RTU_LINK 1
 #define ENABLE_EDGE_IMPULSE 0
 #define ENABLE_HMI_DISPLAY 0
-#define ENABLE_DATA_FORWARDER 0 // 1 = output CSV for edge-impulse-data-forwarder
+#define ENABLE_DATA_FORWARDER 0
+#define ENABLE_TEMPERATURE_SENSORS 0
+#define ENABLE_PUMP_CURRENT_SENSOR 0
 
 // ============== Simulation Mode ==============
-// Set to true for testing without real sensors
-#define SIMULATION_MODE true
+// Set to false for real hardware!
+#define SIMULATION_MODE false
 
 // ============== WiFi Access Point ==============
 #define WIFI_AP_SSID "AquaPuer-MTU"
@@ -34,71 +35,104 @@
 #define AI_TASK_INTERVAL_MS 2000
 #define HMI_TASK_INTERVAL_MS 1000
 #define RTU_TASK_INTERVAL_MS 10
-#define DATA_FORWARDER_INTERVAL_MS 50 // 20 Hz for Edge Impulse data collection
+#define DATA_FORWARDER_INTERVAL_MS 50
 #define RTU_TIMEOUT_MS 3000
 
 // ============== Watchdog ==============
 #define WDT_TIMEOUT_SECONDS 10
 
-// ============== Pin Definitions ==============
-// ESP32-S3 N16R8 note:
-// Avoid GPIO26-GPIO37 on most N16R8 modules because flash/PSRAM can use them.
-// Confirm these pins with your exact dev board before connecting power hardware.
+// ═══════════════════════════════════════════════════════════════
+//  Pin Definitions — ESP32-S3 N16R8
+//  ADC1 = GPIO 1-10  |  Avoid GPIO 26-37 (Flash/PSRAM)
+//  Just change the numbers here and recompile!
+// ═══════════════════════════════════════════════════════════════
 
-// Analog Sensors
-#define PIN_TDS 1
-#define PIN_PRESSURE 2
-#define PIN_FLOW 3
-#define PIN_WATER_LEVEL 4
+// ── Analog Sensors (ADC1: GPIO 1-10) ──
+#define PIN_TURB1    4   // Turbidity sensor 1 (before filter)
+#define PIN_TURB2    5   // Turbidity sensor 2 (after filter)
+#define PIN_PH1      6   // pH sensor 1 (before filter)
+#define PIN_PH2      7   // pH sensor 2 (after filter)
+#define PIN_PRESS1   8   // Pressure sensor 1 (input)
+#define PIN_PRESS2   9   // Pressure sensor 2 (output)
+#define PIN_PUMP_CURRENT 2 // Set to the real ADC pin when enabled
 
-// Digital Outputs - FIXED: No more pin conflict!
-#define PIN_PUMP 12           // Relay driver output
-#define PIN_VALVE 13          // Valve driver output
-#define PIN_LED_STATUS 15     // External status LED
+// ── DS18B20 Temperature Sensors (1-Wire, any digital GPIO) ──
+#define PIN_TEMP1    11  // Temperature sensor 1 (before filter)
+#define PIN_TEMP2    21  // Temperature sensor 2 (after filter)
 
-// Optional HMI display bus
-#define PIN_I2C_SDA 8
-#define PIN_I2C_SCL 9
+// ── Digital Sensors (Interrupt-capable) ──
+#define PIN_FLOW1    14  // Flow sensor 1 (input) - pulse counter
+#define PIN_FLOW2    13  // Flow sensor 2 (output) - pulse counter
 
-// Future RTU link to STM32
-#define PIN_RTU_RX 17
-#define PIN_RTU_TX 18
+// ── Digital Outputs ──
+#define PIN_PUMP     12  // Relay: pump
+#define PIN_VALVE    16  // Relay: valve
+#define PIN_LED_STATUS 15 // Status LED
+
+// ── I2C (LCD display) ──
+#define PIN_I2C_SDA  18
+#define PIN_I2C_SCL  17
+
+// ── RTU UART (to STM32) ──
+// Keep 17/18 for I2C LCD. Avoid 19/20 because they are commonly used by USB.
+#define PIN_RTU_RX   39
+#define PIN_RTU_TX   40
+
+// ═══════════════════════════════════════════════════════════════
+//  Sensor Calibration — adjust based on your actual sensors
+// ═══════════════════════════════════════════════════════════════
+
+// Turbidity: ADC reading for clean vs dirty water
+#define TURB_CLEAN_ADC   3465   // ADC when water is clean (0%)
+#define TURB_DIRTY_ADC   2800   // ADC when water is dirty (100%)
+
+// pH: voltage at pH 7 and slope
+#define PH_NEUTRAL_VOLTAGE  2.44  // Voltage at pH 7.0
+#define PH_SLOPE            0.18  // Voltage change per pH unit
+
+// Pressure: 0-3.5 bar sensors with per-sensor zero offsets
+#define PRESS_ZERO_VOLTAGE_1  0.50  // Voltage at 0 bar for pressure sensor 1
+#define PRESS_ZERO_VOLTAGE_2  0.55  // Voltage at 0 bar for pressure sensor 2
+#define PRESS_ZERO_VOLTAGE    PRESS_ZERO_VOLTAGE_1
+#define PRESS_MAX_VOLTAGE   3.30  // Voltage at max bar
+#define PRESS_MAX_BAR       3.5   // Maximum bar reading
+
+// Flow: pulse-based sensor calibration
+#define FLOW_CALIBRATION_FACTOR  7.5  // Pulses per liter per minute
+
+// Pump current sensor calibration.
+// current = max(0, raw_adc - zero_adc) * amps_per_adc
+#define PUMP_CURRENT_ZERO_ADC     2048.0
+#define PUMP_CURRENT_AMPS_PER_ADC 0.01
 
 // ============== Safety Thresholds ==============
-#define MAX_PRESSURE 100.0   // PSI
-#define MIN_PRESSURE 5.0     // PSI
-#define MAX_TDS 500.0        // PPM
-#define MIN_TDS 50.0         // PPM
-#define MAX_FLOW_RATE 50.0   // L/min
-#define MIN_WATER_LEVEL 10.0 // %
-
-// ============== Calibration Defaults ==============
-#define TDS_OFFSET 0.0
-#define PRESSURE_OFFSET 0.0
-#define TDS_MULTIPLIER 1.0
-#define PRESSURE_MULTIPLIER 1.0
+#define MAX_TURBIDITY  80.0  // %
+#define MAX_PH         9.0
+#define MIN_PH         5.0
+#define MAX_PRESSURE   3.5   // bar
+#define MIN_PRESSURE   0.1   // bar
+#define MAX_FLOW_RATE  50.0  // L/min
+#define MAX_TEMPERATURE 45.0 // °C
+#define MIN_TEMPERATURE 5.0  // °C
+#define MAX_PUMP_CURRENT 8.0 // A
 
 // ============== System Constants ==============
 #define BUFFER_SIZE 512
 #define MAX_RETRY_COUNT 2
 #define DEBOUNCE_DELAY 50
-#define ADC_SAMPLES 10       // Number of samples for smoothing
+#define ADC_SAMPLES 10
 
 // ============== Edge Impulse ==============
-// Number of features sent per inference window.
-// Must match the Edge Impulse project design (4 sensors: tds, pressure, flow, level).
-#define EI_FEATURES_COUNT 4
+#define EI_FEATURES_COUNT 11 // 10 water sensors + optional pump_current
 
 // ============== NVS Persistent Storage ==============
-// Saves calibration data so it survives power cycles.
 #define ENABLE_NVS_STORAGE 1
 #define NVS_NAMESPACE "aquapuer"
 
 // ============== RTU Frame Validation ==============
-// RTU sends -1.0 for sensors that are disconnected/shorted.
 #define RTU_SENSOR_FAULT_VALUE -1.0f
 
 // ============== Version ==============
-#define FIRMWARE_VERSION "3.1.0"
+#define FIRMWARE_VERSION "3.2.0"
 
 #endif // CONFIG_H

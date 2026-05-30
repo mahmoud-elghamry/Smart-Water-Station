@@ -1,109 +1,121 @@
-# 🔧 AquaPuer RTU — Remote Terminal Unit
+# AquaPuer RTU - Remote Terminal Unit
 
-STM32 Blue Pill firmware for field sensor acquisition. Reads 4 analog sensors, detects hardware faults, appends CRC8 integrity checks, and streams JSON frames to the MTU over UART.
+![STM32](https://img.shields.io/badge/STM32-Blue%20Pill-03234B?style=flat-square&logo=stmicroelectronics)
+![PlatformIO](https://img.shields.io/badge/PlatformIO-Firmware-F5822A?style=flat-square&logo=platformio)
+![UART](https://img.shields.io/badge/UART-JSON%20%2B%20CRC8-blue?style=flat-square)
 
----
+The RTU is the STM32 Blue Pill firmware for remote sensor acquisition. In the
+current repository it is still the legacy 4-sensor implementation:
+
+- `tds`
+- `pressure`
+- `flow`
+- `level`
+
+The MTU has moved to a richer before/after-filter schema
+(`turb1/turb2`, `ph1/ph2`, `press1/press2`, `flow1/flow2`, optional
+temperature, optional pump current). Because of that, treat this RTU firmware as
+optional/legacy until its payload is upgraded to the same schema.
+
+## Link Diagram
+
+![RTU UART link](../../docs/assets/rtu-link.svg)
+
+```mermaid
+flowchart LR
+    subgraph RTU["STM32 Blue Pill RTU"]
+        ADC["PA0-PA3 ADC<br/>tds / pressure / flow / level"]
+        CRC["JSON frame + CRC8"]
+        UART1["USART1<br/>PA9 TX / PA10 RX"]
+    end
+
+    subgraph MTU["ESP32-S3 MTU"]
+        UART2["Serial1<br/>GPIO39 RX / GPIO40 TX"]
+        Parser["RTU frame parser<br/>compatibility path"]
+    end
+
+    ADC --> CRC --> UART1
+    UART1 <--> UART2 --> Parser
+```
 
 ## Features
 
 | Feature | Description |
-|---------|-------------|
-| 📊 4× ADC Channels | TDS, Pressure, Flow, Water Level |
-| 🔄 8-Sample Smoothing | Noise-reduced ADC readings |
-| 🔌 Fault Detection | Detects disconnected/shorted sensors (ADC near 0 or 4095) |
-| 🛡️ CRC8 Integrity | Every frame includes a CRC8 checksum |
-| 🐕 IWDG Watchdog | Hardware watchdog — auto-resets if loop hangs (4s timeout) |
-| 📦 Single-Buffer TX | One `snprintf()` + one `Serial.println()` per frame |
-| 🔄 Bidirectional | Receives commands from MTU (e.g., change sample rate) |
-| 💡 Error LED | Fast blink on sensor fault, normal toggle on healthy |
-
----
+|---|---|
+| ADC sampling | Reads 4 analog channels |
+| Smoothing | 8-sample averaged ADC reads |
+| Fault detection | Flags near-rail ADC values as open/short faults |
+| CRC8 | Appends CRC8 to each JSON frame |
+| Watchdog | IWDG 4-second hardware watchdog |
+| Commands | Receives `SET_INTERVAL` over UART |
+| Status LED | Normal blink when healthy, fast blink on sensor fault |
 
 ## Sensor Pins
 
-| Signal | Pin | Range | Unit |
-|--------|-----|-------|------|
-| TDS | PA0 | 0–1000 | PPM |
-| Pressure | PA1 | 0–150 | PSI |
-| Flow | PA2 | 0–100 | L/min |
-| Water Level | PA3 | 0–100 | % |
-| Status LED | PC13 | — | — |
+| Signal | STM32 pin | Range | Unit |
+|---|---|---:|---|
+| TDS | PA0 | 0-1000 | PPM |
+| Pressure | PA1 | 0-150 | PSI |
+| Flow | PA2 | 0-100 | L/min |
+| Water level | PA3 | 0-100 | % |
+| Status LED | PC13 | - | - |
 
----
+## MTU UART Wiring
 
-## MTU Link (UART)
+The MTU LCD uses GPIO17/GPIO18, so the RTU UART is wired to GPIO39/GPIO40 on the
+ESP32-S3:
 
-| Blue Pill | Direction | ESP32-S3 MTU |
-|-----------|-----------|-------------|
-| PA9 (TX) | RTU → MTU | GPIO17 `PIN_RTU_RX` |
-| PA10 (RX) | MTU → RTU | GPIO18 `PIN_RTU_TX` |
-| GND | Common | GND |
+| STM32 Blue Pill | Direction | ESP32-S3 MTU |
+|---|---|---|
+| PA9 TX | RTU -> MTU | GPIO39 `PIN_RTU_RX` |
+| PA10 RX | MTU -> RTU | GPIO40 `PIN_RTU_TX` |
+| GND | common | GND |
 
-Both boards are 3.3V logic. **Do not use 5V UART levels.**
-
----
+Both boards use 3.3V logic. Do not use 5V UART levels.
 
 ## Frame Format
 
-Every 200ms (configurable at runtime), the RTU sends:
+Every `RTU_FRAME_INTERVAL_MS` milliseconds, default 200 ms:
 
 ```json
 {"type":"rtu_frame","seq":42,"tds":250.00,"pressure":45.00,"flow":0.00,"level":75.00,"err":0,"ts":8400,"crc":123}
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | string | Always `"rtu_frame"` |
-| `seq` | uint32 | Frame sequence number (monotonically increasing) |
-| `tds` | float | TDS in PPM (or `-1.0` if sensor fault) |
-| `pressure` | float | Pressure in PSI (or `-1.0` if sensor fault) |
-| `flow` | float | Flow rate in L/min (or `-1.0` if sensor fault) |
-| `level` | float | Water level in % (or `-1.0` if sensor fault) |
-| `err` | uint8 | Error flags bitmask (see below) |
-| `ts` | uint32 | Timestamp in milliseconds since boot |
-| `crc` | uint8 | CRC8 of everything before `,"crc":` |
+| Field | Description |
+|---|---|
+| `type` | always `"rtu_frame"` |
+| `seq` | increasing sequence number |
+| `tds` | TDS in PPM, or `-1.0` on sensor fault |
+| `pressure` | pressure in PSI, or `-1.0` on sensor fault |
+| `flow` | flow in L/min, or `-1.0` on sensor fault |
+| `level` | water level %, or `-1.0` on sensor fault |
+| `err` | sensor error bitmask |
+| `ts` | milliseconds since boot |
+| `crc` | CRC8 of the JSON payload before `,"crc":` |
 
-### Error Flags Bitmask
+Error flags:
 
 | Bit | Value | Meaning |
-|-----|-------|---------|
+|---:|---:|---|
 | 0 | `0x01` | TDS sensor fault |
 | 1 | `0x02` | Pressure sensor fault |
 | 2 | `0x04` | Flow sensor fault |
 | 3 | `0x08` | Level sensor fault |
 
-A sensor is flagged as **faulty** when its raw ADC reading is ≤ 10 (short circuit) or ≥ 4085 (open circuit / disconnected).
-
----
-
-## Commands from MTU
-
-The RTU listens for JSON commands on UART:
+## Commands
 
 ```json
 {"cmd":"SET_INTERVAL","value":100}
 ```
 
-| Command | Description |
-|---------|-------------|
-| `SET_INTERVAL` | Change frame interval in milliseconds (50–5000) |
+`SET_INTERVAL` accepts 50-5000 milliseconds.
 
----
+## Build and Upload
 
-## Build & Upload
-
-Requires [PlatformIO](https://platformio.org/) and an ST-Link programmer.
+Requires PlatformIO and an ST-Link programmer.
 
 ```bash
-pio run -e bluepill_f103c8            # Build
-pio run -e bluepill_f103c8 -t upload  # Flash
+cd firmware/RTU
+pio run -e bluepill_f103c8
+pio run -e bluepill_f103c8 -t upload
 ```
-
-### Build Stats
-
-```
-RAM:   6.3%  (1,292 / 20,480 bytes)
-Flash: 33.2% (21,728 / 65,536 bytes)
-```
-
----

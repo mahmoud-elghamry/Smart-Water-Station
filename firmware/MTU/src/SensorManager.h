@@ -4,7 +4,7 @@
 #include "Config.h"
 #include "StateMachine.h"
 
-// Sensor reading result structure
+// Single sensor reading
 struct SensorReading {
   float value = 0.0;
   bool isValid = false;
@@ -12,57 +12,76 @@ struct SensorReading {
   unsigned long timestamp = 0;
 };
 
-// Snapshot of all sensor readings taken at the same time.
-// Eliminates the double-read problem: read once, use everywhere.
+// All 8 sensors in one snapshot (read once, use everywhere)
 struct SensorSnapshot {
-  SensorReading tds;
-  SensorReading pressure;
-  SensorReading flow;
-  SensorReading level;
+  SensorReading turb1;      // Turbidity before filter (%)
+  SensorReading turb2;      // Turbidity after filter (%)
+  SensorReading ph1;        // pH before filter
+  SensorReading ph2;        // pH after filter
+  SensorReading flow1;      // Flow rate input (L/min)
+  SensorReading flow2;      // Flow rate output (L/min)
+  SensorReading pressure1;  // Pressure input (bar)
+  SensorReading pressure2;  // Pressure output (bar)
+  SensorReading temp1;      // Temperature before filter (°C)
+  SensorReading temp2;      // Temperature after filter (°C)
+  SensorReading pumpCurrent; // Pump current (A), optional
 };
 
-// Calibration data structure
+// Calibration data
 struct CalibrationData {
-  float tdsOffset = 0.0;
-  float tdsMultiplier = 1.0;
-  float pressureOffset = 0.0;
-  float pressureMultiplier = 1.0;
+  float turbCleanADC = TURB_CLEAN_ADC;
+  float turbDirtyADC = TURB_DIRTY_ADC;
+  float phNeutralVoltage = PH_NEUTRAL_VOLTAGE;
+  float phSlope = PH_SLOPE;
+  float pressZeroVoltage1 = PRESS_ZERO_VOLTAGE_1;
+  float pressZeroVoltage2 = PRESS_ZERO_VOLTAGE_2;
+  float flowCalFactor = FLOW_CALIBRATION_FACTOR;
 };
 
 class SensorManager {
 public:
   void begin();
 
-  // Single-shot read of all sensors (preferred — avoids double reads)
+  // Read all 8 sensors at once
   SensorSnapshot readAll();
 
-  // Individual sensor readings (still available for calibration / debug)
-  SensorReading readTDS();
-  SensorReading readPressure();
-  SensorReading readFlowRate();
-  SensorReading readWaterLevel();
+  // Individual reads
+  SensorReading readTurbidity(int pin);
+  SensorReading readPH(int pin);
+  SensorReading readPressure(int pin, float zeroVoltage);
+  SensorReading readFlowRate(int channel);  // 0 = flow1, 1 = flow2
+  SensorReading readTemperature(int channel); // 0 = temp1, 1 = temp2
+  SensorReading readPumpCurrent();
 
-  // Safety checks using an already-captured snapshot (no re-read)
+  // Safety
   ErrorCode checkSafety(const SensorSnapshot &snap);
   bool isCritical(ErrorCode err);
 
   // Calibration
   void setCalibration(CalibrationData cal);
   CalibrationData getCalibration();
-  void calibrateTDS(float referenceValue);
-  void calibratePressure(float referenceValue);
-
-  // Persistent calibration (NVS)
   void loadCalibrationFromNVS();
   void saveCalibrationToNVS();
 
-  // Simulation support
+  // Simulation
   void setPumpState(bool running);
 
-private:
-  CalibrationData _calibration;
+  // Flow interrupt counters (public for ISR access)
+  static volatile long pulseCount1;
+  static volatile long pulseCount2;
 
-  // Helper functions
+private:
+  CalibrationData _cal;
+  unsigned long _lastFlowTime = 0;
+  float _lastFlow1 = 0;
+  float _lastFlow2 = 0;
+
+  // EMA filters for analog smoothing
+  float _turbFiltered1 = 0;
+  float _turbFiltered2 = 0;
+  float _phFiltered1 = 0;
+  float _phFiltered2 = 0;
+
   float readAnalogSmoothed(int pin, int samples = ADC_SAMPLES);
   bool validateReading(float value, float min, float max);
 };

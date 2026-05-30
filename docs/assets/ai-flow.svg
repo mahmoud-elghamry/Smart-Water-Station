@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="520" viewBox="0 0 1180 520" role="img" aria-labelledby="title desc">
+  <title id="title">AI Controller Flow</title>
+  <desc id="desc">Python AI controller flow showing serial telemetry, FastAPI, MQTT, security monitor, and dataset logger.</desc>
+  <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0f172a" flood-opacity=".14"/></filter><marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M2 2 L10 6 L2 10 Z" fill="#334155"/></marker><style>.bg{fill:#f8fafc}.title{font:700 30px Arial;fill:#0f172a}.card{fill:#fff;stroke:#d8e3ef;stroke-width:1.4;rx:18;filter:url(#shadow)}.label{font:700 18px Arial;fill:#0f172a}.small{font:400 14px Arial;fill:#475569}.tiny{font:400 12px Arial;fill:#64748b}.line{stroke:#334155;stroke-width:2.5;fill:none;marker-end:url(#arrow)}</style></defs>
+  <rect width="1180" height="520" class="bg"/>
+  <text x="54" y="58" class="title">Python AI Controller Flow</text>
+  <rect x="60" y="190" width="220" height="120" class="card"/><text x="90" y="233" class="label">ESP32 MTU</text><text x="90" y="263" class="small">USB serial JSON</text><text x="90" y="286" class="tiny">COM3 / 115200</text>
+  <rect x="400" y="170" width="260" height="160" class="card"/><text x="430" y="214" class="label">AIController</text><text x="430" y="244" class="small">telemetry map + state</text><text x="430" y="267" class="tiny">commands, alerts, dataset rows</text>
+  <rect x="790" y="70" width="250" height="95" class="card"/><text x="820" y="108" class="label">FastAPI</text><text x="820" y="136" class="tiny">/api/status, /ws/live</text>
+  <rect x="790" y="210" width="250" height="95" class="card"/><text x="820" y="248" class="label">MQTT</text><text x="820" y="276" class="tiny">telemetry, status, commands</text>
+  <rect x="790" y="350" width="250" height="95" class="card"/><text x="820" y="388" class="label">Dataset CSV</text><text x="820" y="416" class="tiny">logs/edge_impulse_dataset.csv</text>
+  <rect x="400" y="380" width="260" height="80" class="card"/><text x="430" y="416" class="label">Camera Monitor</text><text x="430" y="440" class="tiny">security alerts / emergency stop</text>
+  <path d="M280 250 H398" class="line"/><path d="M660 215 C720 155 730 120 788 118" class="line"/><path d="M660 250 H788" class="line"/><path d="M660 292 C720 352 730 395 788 398" class="line"/><path d="M530 380 V332" class="line"/>
+</svg>

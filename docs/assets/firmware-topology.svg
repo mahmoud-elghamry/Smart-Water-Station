@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="620" viewBox="0 0 1180 620" role="img" aria-labelledby="title desc">
+  <title id="title">Firmware Topology</title>
+  <desc id="desc">ESP32 MTU firmware topology with sensors, RTU UART, web server, serial telemetry, and outputs.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0f172a" flood-opacity=".14"/></filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M2 2 L10 6 L2 10 Z" fill="#334155"/></marker>
+    <style>
+      .bg{fill:#f8fafc}.card{fill:white;stroke:#d7e2ee;stroke-width:1.4;rx:16;filter:url(#shadow)}.head{fill:#0f766e;rx:16}.title{font:700 30px Arial;fill:#0f172a}.h{font:700 19px Arial;fill:#fff}.label{font:700 16px Arial;fill:#0f172a}.small{font:400 13px Arial;fill:#475569}.tiny{font:400 12px Arial;fill:#64748b}.pill{fill:#eef6ff;stroke:#cfe0f5;rx:10}.line{stroke:#334155;stroke-width:2.3;fill:none;marker-end:url(#arrow)}.dash{stroke:#64748b;stroke-width:2.2;stroke-dasharray:7 6;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1180" height="620" class="bg"/>
+  <text x="54" y="60" class="title">ESP32-S3 MTU Firmware Topology</text>
+
+  <rect x="50" y="120" width="250" height="330" class="card"/>
+  <rect x="50" y="120" width="250" height="60" class="head"/>
+  <text x="78" y="157" class="h">Inputs</text>
+  <rect x="78" y="210" width="194" height="42" class="pill"/><text x="95" y="235" class="label">Turbidity GPIO4/5</text>
+  <rect x="78" y="268" width="194" height="42" class="pill"/><text x="95" y="293" class="label">pH GPIO6/7</text>
+  <rect x="78" y="326" width="194" height="42" class="pill"/><text x="95" y="351" class="label">Flow GPIO14/13</text>
+  <rect x="78" y="384" width="194" height="42" class="pill"/><text x="95" y="409" class="label">Pressure GPIO8/9</text>
+
+  <rect x="420" y="105" width="330" height="390" class="card"/>
+  <rect x="420" y="105" width="330" height="64" rx="16" fill="#2563eb"/>
+  <text x="452" y="144" class="h">MTU FreeRTOS Core</text>
+  <rect x="455" y="196" width="260" height="42" class="pill"/><text x="475" y="221" class="label">ControlTask</text>
+  <rect x="455" y="250" width="260" height="42" class="pill"/><text x="475" y="275" class="label">TelemetrySnapshot</text>
+  <rect x="455" y="304" width="260" height="42" class="pill"/><text x="475" y="329" class="label">WebDashboard</text>
+  <rect x="455" y="358" width="260" height="42" class="pill"/><text x="475" y="383" class="label">CommsHandler</text>
+  <rect x="455" y="412" width="260" height="42" class="pill"/><text x="475" y="437" class="label">AiService</text>
+
+  <rect x="870" y="110" width="240" height="112" class="card"/>
+  <text x="900" y="150" class="label">Browser</text>
+  <text x="900" y="176" class="small">HTTP dashboard</text>
+  <text x="900" y="197" class="tiny">WebSocket :81</text>
+
+  <rect x="870" y="272" width="240" height="112" class="card"/>
+  <text x="900" y="312" class="label">Python AI</text>
+  <text x="900" y="338" class="small">USB serial JSON</text>
+  <text x="900" y="359" class="tiny">dataset + MQTT + API</text>
+
+  <rect x="870" y="434" width="240" height="112" class="card"/>
+  <text x="900" y="474" class="label">Actuators</text>
+  <text x="900" y="500" class="small">Pump GPIO12</text>
+  <text x="900" y="521" class="tiny">Valve GPIO16, LED GPIO15</text>
+
+  <rect x="50" y="490" width="250" height="82" class="card"/>
+  <text x="78" y="526" class="label">STM32 RTU</text>
+  <text x="78" y="550" class="tiny">Optional legacy UART path</text>
+
+  <path d="M300 285 C350 285 370 285 418 285" class="line"/>
+  <path d="M750 315 C812 300 820 172 868 166" class="line"/>
+  <path d="M750 360 C810 360 820 330 868 328" class="line"/>
+  <path d="M750 430 C810 430 820 490 868 490" class="line"/>
+  <path d="M300 532 C362 532 362 455 418 430" class="dash"/>
+  <text x="318" y="520" class="tiny">GPIO39/40</text>
+</svg>

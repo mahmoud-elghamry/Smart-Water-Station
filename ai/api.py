@@ -26,6 +26,10 @@ class CommandResponse(BaseModel):
     message: str = "Command sent"
 
 
+class DatasetLabelRequest(BaseModel):
+    label: str = Field(..., description="Dataset label, e.g. normal or pump_overload")
+
+
 def create_app(ctrl: "AIController") -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -53,6 +57,15 @@ def create_app(ctrl: "AIController") -> FastAPI:
     @app.get("/api/telemetry", tags=["Monitoring"])
     async def telemetry():
         return ctrl.latest_telemetry
+
+    @app.get("/api/dataset/status", tags=["Dataset"])
+    async def dataset_status():
+        return ctrl.get_dataset_status()
+
+    @app.post("/api/dataset/label", tags=["Dataset"])
+    async def dataset_label(req: DatasetLabelRequest):
+        label = ctrl.set_dataset_label(req.label)
+        return {"ok": True, "label": label}
 
     @app.get("/api/alerts", tags=["Security"])
     async def alerts():

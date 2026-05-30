@@ -36,6 +36,22 @@
         "max_size_mb": 10,
         "backup_count": 3
     },
+    "dataset": {
+        "enabled": true,
+        "file": "logs/edge_impulse_dataset.csv",
+        "interval_seconds": 1.0,
+        "label": "unlabeled",
+        "required_sensors": [
+            "turb1",
+            "turb2",
+            "ph1",
+            "ph2",
+            "flow1",
+            "flow2",
+            "press1",
+            "press2"
+        ]
+    },
     "api": {
         "enabled": true,
         "host": "0.0.0.0",

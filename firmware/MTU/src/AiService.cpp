@@ -48,10 +48,12 @@ AiResult AiService::run(const TelemetrySnapshot &snapshot)
 
   /*
   float features[EI_FEATURES_COUNT] = {
-      snapshot.tds.value,
-      snapshot.pressure.value,
-      snapshot.flow.value,
-      snapshot.level.value
+      snapshot.turb1.value, snapshot.turb2.value,
+      snapshot.ph1.value, snapshot.ph2.value,
+      snapshot.flow1.value, snapshot.flow2.value,
+      snapshot.pressure1.value, snapshot.pressure2.value,
+      snapshot.temp1.value, snapshot.temp2.value,
+      snapshot.pumpCurrent.value
   };
 
   signal_t signal;
@@ -106,16 +108,34 @@ AiResult AiService::run(const TelemetrySnapshot &snapshot)
     result.confidence = 0.95f;
     result.fault = true;
   }
-  else if (snapshot.tds.value > (MAX_TDS * 0.85f))
+  else if (snapshot.turb1.value > (MAX_TURBIDITY * 0.85f) || snapshot.turb2.value > (MAX_TURBIDITY * 0.85f))
   {
-    strncpy(result.label, "tds_warning", sizeof(result.label) - 1);
+    strncpy(result.label, "turbidity_warn", sizeof(result.label) - 1);
     result.confidence = 0.75f;
     result.fault = false;
   }
-  else if (snapshot.pressure.value > (MAX_PRESSURE * 0.85f))
+  else if (snapshot.ph1.value > (MAX_PH * 0.95f) || snapshot.ph1.value < (MIN_PH * 1.05f))
   {
-    strncpy(result.label, "pressure_warning", sizeof(result.label) - 1);
+    strncpy(result.label, "ph_warning", sizeof(result.label) - 1);
     result.confidence = 0.75f;
+    result.fault = false;
+  }
+  else if (snapshot.pressure1.value > (MAX_PRESSURE * 0.85f))
+  {
+    strncpy(result.label, "pressure_warn", sizeof(result.label) - 1);
+    result.confidence = 0.75f;
+    result.fault = false;
+  }
+  else if (snapshot.temp1.value > (MAX_TEMPERATURE * 0.90f))
+  {
+    strncpy(result.label, "temp_warning", sizeof(result.label) - 1);
+    result.confidence = 0.75f;
+    result.fault = false;
+  }
+  else if (snapshot.pumpCurrent.isValid && snapshot.pumpCurrent.value > (MAX_PUMP_CURRENT * 0.85f))
+  {
+    strncpy(result.label, "pump_current_warn", sizeof(result.label) - 1);
+    result.confidence = 0.80f;
     result.fault = false;
   }
   else

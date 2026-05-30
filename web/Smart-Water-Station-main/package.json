@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
-    "build:esp32": "npm run build && node scripts/copy-dist-to-platformio.mjs",
+    "build:esp32": "npm run build && node scripts/copy-dist-to-platformio.cjs",
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint"
   },

@@ -1,6 +1,6 @@
 <div align="center">
 
-# AquaPuer - Smart Water Station
+# Smart Water Station
 
 **Embedded water-treatment monitoring, control, dashboarding, and AI data capture**
 

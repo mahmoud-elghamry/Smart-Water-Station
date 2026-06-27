@@ -2,7 +2,7 @@
 
 # Smart Water Station
 
-**Embedded water-treatment monitoring, control, dashboarding, and AI data capture**
+**water-treatment monitoring, control, dashboarding, and AI data capture**
 
 ![ESP32-S3](https://img.shields.io/badge/ESP32--S3-MTU-blue?style=flat-square&logo=espressif)
 ![STM32](https://img.shields.io/badge/STM32-RTU-03234B?style=flat-square&logo=stmicroelectronics)
@@ -18,7 +18,7 @@
 
 ## Overview
 
-AquaPuer is a graduation-project smart water station. The current build uses an
+It is a graduation-project smart water station. The current build uses an
 ESP32-S3 as the main controller for local sensors, pump/valve control, an
 on-board web dashboard, REST/WebSocket APIs, serial telemetry, and optional Edge
 Impulse inference. A Python controller can read the ESP32 serial stream, expose

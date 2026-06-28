@@ -22,7 +22,7 @@ def main():
     ctrl = AIController(config)
 
     api_cfg = config.get("api", {})
-    if api_cfg.get("enabled", False):
+    if api_cfg.get("enabled", False): 
         # Run controller on a background thread, API on main thread
         threading.Thread(target=ctrl.run, name="Controller", daemon=True).start()
 
